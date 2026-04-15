@@ -1142,6 +1142,15 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
             W.appendChild(r2);
         }
 
+        if (YONG_LIANG.jiFeiJieShu) {
+            var r3 = _ce('div', 'margin-bottom:2px;');
+            var t3 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);');
+            t3.appendChild(document.createTextNode('\\u91cd\\u7f6e\\u65e5\\u671f Resets '));
+            t3.appendChild(_ce('span', 'color:#a78bfa;font-weight:600;', YONG_LIANG.jiFeiJieShu));
+            r3.appendChild(t3);
+            W.appendChild(r3);
+        }
+
         return W;
     }
 

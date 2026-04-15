@@ -62,4 +62,3 @@ start "" "%CURSOR_EXE%" --user-data-dir="%CURSOR_USER_DIR%"
 
 echo [完成] Cursor 已启动
 
-exit

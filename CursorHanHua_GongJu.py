@@ -1141,85 +1141,44 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
     }
 
     function _bar(pct, color, h) {
-        var outer = _ce('div', 'width:100%;height:' + (h||6) + 'px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;');
-        var inner = _ce('div', 'width:' + pct.toFixed(1) + '%;height:100%;background:' + color + ';border-radius:3px;transition:width 0.5s;');
+        var outer = _ce('div', 'width:100%;height:' + (h||4) + 'px;background:rgba(255,255,255,0.08);border-radius:99px;overflow:hidden;');
+        var inner = _ce('div', 'width:' + Math.min(pct, 100).toFixed(1) + '%;height:100%;background:' + color + ';border-radius:99px;transition:width 0.5s;');
         outer.appendChild(inner);
         return outer;
-    }
-
-    function _row(label, valText, valColor) {
-        var r = _ce('div', 'display:flex;justify-content:space-between;margin-bottom:4px;');
-        r.appendChild(_ce('span', '', label));
-        var vs = _ce('span', '');
-        var b = _ce('b', 'color:' + valColor, valText.split('/')[0]);
-        vs.appendChild(b);
-        vs.appendChild(document.createTextNode(' / ' + valText.split('/')[1]));
-        r.appendChild(vs);
-        return r;
     }
 
     function ChuangJian_YongLiang_YuanSu() {
         if (!YONG_LIANG || !YONG_LIANG.youXiao) return null;
 
-        var RongQi = _ce('div', 'margin:10px 0 6px 0;padding:14px 16px;background:rgba(255,255,255,0.04);border-radius:10px;border:1px solid rgba(255,255,255,0.08);font-size:12px;color:rgba(228,228,228,0.85);line-height:1.7;');
-        RongQi.id = 'cursor-yongliang-xianshi';
+        var zP = YONG_LIANG.zongXian > 0 ? (YONG_LIANG.zongYong / YONG_LIANG.zongXian * 100) : 0;
+        var gP = YONG_LIANG.gaoJiXian > 0 ? (YONG_LIANG.gaoJiYong / YONG_LIANG.gaoJiXian * 100) : 0;
+        var zC = zP < 60 ? '#4ade80' : (zP < 85 ? '#fbbf24' : '#ef4444');
+        var gC = gP < 60 ? '#38bdf8' : (gP < 85 ? '#fbbf24' : '#ef4444');
 
-        var ZongBaiFen = YONG_LIANG.zongXian > 0 ? (YONG_LIANG.zongYong / YONG_LIANG.zongXian * 100) : 0;
-        var GaoJiBaiFen = YONG_LIANG.gaoJiXian > 0 ? (YONG_LIANG.gaoJiYong / YONG_LIANG.gaoJiXian * 100) : 0;
-        var JinDuYanSe = ZongBaiFen < 60 ? '#4ade80' : (ZongBaiFen < 85 ? '#facc15' : '#ef4444');
-        var GaoJi_JinDuYanSe = GaoJiBaiFen < 60 ? '#38bdf8' : (GaoJiBaiFen < 85 ? '#facc15' : '#ef4444');
+        var W = _ce('div', 'margin:6px 0 2px 0;');
+        W.id = 'cursor-yongliang-xianshi';
 
-        var header = _ce('div', 'font-weight:600;margin-bottom:10px;color:rgba(228,228,228,0.95);font-size:13px;display:flex;align-items:center;justify-content:space-between;');
-        header.appendChild(_ce('span', '', '\\u4f7f\\u7528\\u60c5\\u51b5'));
-        header.appendChild(_ce('span', 'font-size:11px;font-weight:400;color:rgba(228,228,228,0.4);', YONG_LIANG.gengXinShiJian));
-        RongQi.appendChild(header);
-
-        var sec1 = _ce('div', 'margin-bottom:8px;');
-        sec1.appendChild(_row('\\u603b\\u7528\\u91cf', YONG_LIANG.zongYong + '/' + YONG_LIANG.zongXian + ' \\u6b21', JinDuYanSe));
-        sec1.appendChild(_bar(ZongBaiFen, JinDuYanSe, 6));
-        sec1.appendChild(_ce('div', 'text-align:right;font-size:11px;color:rgba(228,228,228,0.45);margin-top:2px;', '\\u5269\\u4f59 ' + YONG_LIANG.shengYu + ' \\u6b21 (' + ZongBaiFen.toFixed(1) + '%)'));
-        RongQi.appendChild(sec1);
+        var r1 = _ce('div', 'margin-bottom:4px;');
+        var t1 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);margin-bottom:2px;');
+        t1.appendChild(document.createTextNode('\\u603b\\u7528\\u91cf '));
+        t1.appendChild(_ce('span', 'color:' + zC + ';font-weight:600;', '' + YONG_LIANG.zongYong));
+        t1.appendChild(document.createTextNode(' / ' + YONG_LIANG.zongXian));
+        r1.appendChild(t1);
+        r1.appendChild(_bar(zP, zC, 3));
+        W.appendChild(r1);
 
         if (YONG_LIANG.gaoJiXian > 0) {
-            var sec2 = _ce('div', 'margin-bottom:8px;');
-            sec2.appendChild(_row('\\u9ad8\\u7ea7\\u8bf7\\u6c42 (Premium)', YONG_LIANG.gaoJiYong + '/' + YONG_LIANG.gaoJiXian + ' \\u6b21', GaoJi_JinDuYanSe));
-            sec2.appendChild(_bar(GaoJiBaiFen, GaoJi_JinDuYanSe, 6));
-            sec2.appendChild(_ce('div', 'text-align:right;font-size:11px;color:rgba(228,228,228,0.45);margin-top:2px;', GaoJiBaiFen.toFixed(1) + '%'));
-            RongQi.appendChild(sec2);
+            var r2 = _ce('div', 'margin-bottom:4px;');
+            var t2 = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.55);margin-bottom:2px;');
+            t2.appendChild(document.createTextNode('\\u9ad8\\u7ea7\\u6a21\\u578b '));
+            t2.appendChild(_ce('span', 'color:' + gC + ';font-weight:600;', '' + YONG_LIANG.gaoJiYong));
+            t2.appendChild(document.createTextNode(' / ' + YONG_LIANG.gaoJiXian));
+            r2.appendChild(t2);
+            r2.appendChild(_bar(gP, gC, 3));
+            W.appendChild(r2);
         }
 
-        var mxData = YONG_LIANG.moXingXiangQing || {};
-        var mxKeys = Object.keys(mxData);
-        if (mxKeys.length > 0) {
-            var mxSec = _ce('div', 'margin-top:4px;border-top:1px solid rgba(255,255,255,0.06);padding-top:8px;');
-            mxSec.appendChild(_ce('div', 'font-weight:500;margin-bottom:6px;font-size:12px;color:rgba(228,228,228,0.7);', '\\u6a21\\u578b\\u8be6\\u60c5'));
-            for (var mi = 0; mi < mxKeys.length; mi++) {
-                var mKey = mxKeys[mi];
-                var mVal = mxData[mKey];
-                var mPct = mVal.shangXian > 0 ? (mVal.qingQiu / mVal.shangXian * 100) : 0;
-                var mColor = mPct < 60 ? '#a78bfa' : (mPct < 85 ? '#facc15' : '#ef4444');
-                var tkStr = GeShiHua_LingPai(mVal.lingPaiShu || 0);
-                var mItem = _ce('div', 'margin-bottom:6px;');
-                var mRow = _ce('div', 'display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;color:rgba(228,228,228,0.65);');
-                mRow.appendChild(_ce('span', 'font-weight:500;', mKey));
-                mRow.appendChild(_ce('span', '', mVal.qingQiu + ' / ' + mVal.shangXian + ' \\u6b21 | ' + tkStr + ' tokens'));
-                mItem.appendChild(mRow);
-                mItem.appendChild(_bar(mPct, mColor, 4));
-                mxSec.appendChild(mItem);
-            }
-            RongQi.appendChild(mxSec);
-        }
-
-        if (YONG_LIANG.jiFeiKaiShi && YONG_LIANG.jiFeiJieShu) {
-            var footer = _ce('div', 'font-size:11px;color:rgba(228,228,228,0.4);border-top:1px solid rgba(255,255,255,0.06);padding-top:6px;margin-top:4px;display:flex;justify-content:space-between;');
-            footer.appendChild(_ce('span', '', '\\u8ba1\\u8d39\\u5468\\u671f: ' + YONG_LIANG.jiFeiKaiShi + ' \\u81f3 ' + YONG_LIANG.jiFeiJieShu));
-            if (YONG_LIANG._shiShi) {
-                footer.appendChild(_ce('span', 'color:#4ade80;', '\\u2022 \\u5b9e\\u65f6'));
-            }
-            RongQi.appendChild(footer);
-        }
-
-        return RongQi;
+        return W;
     }
 
     function ChaRu_YongLiang_XianShi() {
@@ -1245,48 +1204,37 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
             }
         }
 
-        if (YouXiangJieDian) {
-            var MaoMao = YouXiangJieDian;
-            for (var up = 0; up < 6; up++) {
-                if (!MaoMao.parentElement || MaoMao.parentElement === document.body) break;
-                var sibs = MaoMao.parentElement.children;
-                var myIdx = -1;
-                for (var si = 0; si < sibs.length; si++) {
-                    if (sibs[si] === MaoMao) { myIdx = si; break; }
-                }
-                var hasPlanText = false;
-                var blockTxt = MaoMao.parentElement.textContent || '';
-                if (/Pro Plan|Pro|\\u4e13\\u4e1a\\u7248|Manage|\\u7ba1\\u7406/.test(blockTxt)) {
-                    hasPlanText = true;
-                }
-                if (hasPlanText && MaoMao.parentElement.childElementCount >= 2) {
-                    console.log('[HanHua] Account block found at depth', up, MaoMao.parentElement.tagName, MaoMao.parentElement.className);
-                    if (MaoMao.parentElement.nextSibling) {
-                        MaoMao.parentElement.parentElement.insertBefore(YuanSu, MaoMao.parentElement.nextSibling);
-                    } else {
-                        MaoMao.parentElement.parentElement.appendChild(YuanSu);
-                    }
-                    console.log('[HanHua] Usage card inserted after account block');
-                    return;
-                }
-                MaoMao = MaoMao.parentElement;
-            }
-
-            var ChaRu_Dian = YouXiangJieDian;
-            for (var up2 = 0; up2 < 4; up2++) {
-                if (!ChaRu_Dian.parentElement || ChaRu_Dian.parentElement === document.body) break;
-                ChaRu_Dian = ChaRu_Dian.parentElement;
-            }
-            if (ChaRu_Dian.nextSibling) {
-                ChaRu_Dian.parentElement.insertBefore(YuanSu, ChaRu_Dian.nextSibling);
-            } else {
-                ChaRu_Dian.parentElement.appendChild(YuanSu);
-            }
-            console.log('[HanHua] Usage card inserted near email element (fallback)');
+        if (!YouXiangJieDian) {
+            console.log('[HanHua] Email node not found, skipping usage card');
             return;
         }
 
-        console.log('[HanHua] Email node not found, skipping usage card');
+        var ZhangHuKuai = null;
+        var cur = YouXiangJieDian;
+        for (var up = 0; up < 8; up++) {
+            if (!cur.parentElement || cur.parentElement === document.body) break;
+            var txt = cur.parentElement.textContent || '';
+            if (/Pro|\\u4e13\\u4e1a\\u7248|Plan|\\u8ba1\\u5212/.test(txt) && cur.parentElement.childElementCount >= 2) {
+                ZhangHuKuai = cur.parentElement;
+                break;
+            }
+            cur = cur.parentElement;
+        }
+
+        if (ZhangHuKuai) {
+            ZhangHuKuai.appendChild(YuanSu);
+            console.log('[HanHua] Usage card appended inside account block');
+            return;
+        }
+
+        var parent = YouXiangJieDian;
+        for (var i = 0; i < 3; i++) {
+            if (parent.parentElement && parent.parentElement !== document.body) {
+                parent = parent.parentElement;
+            }
+        }
+        parent.appendChild(YuanSu);
+        console.log('[HanHua] Usage card appended (fallback)');
     }
 
     // ================================================================

@@ -2,7 +2,9 @@
 
 ## 工具简介
 
-本工具用于将 Cursor IDE 的 Settings 页面（设置页面）从英文翻译为中文，同时在设置页面的用户信息区域下方实时显示 API 用量数据（总用量、高级模型用量、重置日期、倒计时等）。无论 Cursor 版本如何更新，只需重新运行脚本即可恢复汉化与用量显示。
+本工具用于将 Cursor IDE 的 Settings 页面（设置页面）以及部分 Cursor 新版界面从英文翻译为中文，同时在设置页面的用户信息区域下方实时显示 API 用量数据（总用量、高级模型用量、重置日期、倒计时等）。无论 Cursor 版本如何更新，只需重新运行脚本即可恢复汉化与用量显示。
+
+当前版本在原有设置页汉化基础上，扩展了智能体窗口、市场插件页、插件详情页、输出面板、Git/变更面板、欢迎页、模型选择器等常见漏翻区域。
 
 ## 文件清单
 
@@ -10,13 +12,40 @@
 |------|------|
 | `CursorHanHua_GongJu.py` | Python 汉化注入主程序（核心脚本） |
 | `QiDong_Cursor_ZhongWen.bat` | 一键启动批处理文件（自动注入 + 启动 Cursor） |
-| `说明.md` | 本说明文档 |
+| `cursor_setting_lookup.js` | 辅助查找 Cursor 设置文案来源的工具 |
+| `cmdow.exe` | 批处理静默启动辅助工具 |
+| `README.md` | 本说明文档 |
+
+## 本次基于当前版本的更新内容
+
+- 扩展汉化范围：补充智能体窗口、市场、插件页、插件详情页、模型选择器、Git/变更面板、输出面板、欢迎页、菜单项等漏翻内容。
+- 支持拼接文案：针对 Cursor 中被图标、链接或变量拆开的句子，增加片段级翻译和页面级修正逻辑。
+- 市场插件增强：插件名保留英文并追加中文括号名，例如 `Datadog（监控观测）`、`typescript-lsp（TypeScript 语言服务）`。
+- 插件说明翻译：已知插件说明走内置词典；为保证市场打开速度，在线实时翻译默认关闭，可按需在开发者工具中开启。
+- 插件详情页增强：技能名称保留原 ID，并追加中文用途，例如 `ddconfig（配置 Datadog）`。
+- 增加市场页切换按钮：市场页右上角显示 `插件描述：中文/英文`，可切换插件说明显示语言。
+- 路径配置改进：默认从脚本位置自动推断 Cursor 安装目录，也支持 `CURSOR_INSTALL_DIR` 和 `CURSOR_USER_DATA_DIR` 环境变量。
+- 性能优化：全局修正节流、页面关键词判断、市场页识别缓存；市场页在线翻译默认关闭，减少 Cursor 启动和打开市场时的额外开销。
+- 安全整理：新增 `.gitignore`，避免上传 `cursor_hanhua.js`、备份文件、缓存文件等可能包含本地信息的生成产物。
 
 ## 使用方法
 
 ### 方法一：一键启动（推荐）
 
+推荐将本工具目录放在 Cursor 安装目录下或旁边，例如：
+
+```text
+D:\Tools\cursor\
+  Cursor.exe
+  resources\
+  Cursor_chinese\
+    CursorHanHua_GongJu.py
+    QiDong_Cursor_ZhongWen.bat
+```
+
 双击 `QiDong_Cursor_ZhongWen.bat`，它会自动检测汉化状态并注入，然后启动 Cursor。
+
+批处理默认把 `Cursor_chinese` 的上一级目录识别为 Cursor 安装根目录。如果你的目录结构不同，请按下方“修改安装路径”设置。
 
 ### 方法二：手动注入
 
@@ -32,22 +61,39 @@ python CursorHanHua_GongJu.py --huifu
 
 ## 修改安装路径
 
-打开 `CursorHanHua_GongJu.py`，找到文件开头的 **用户配置区域**：
+新版脚本优先支持通过环境变量指定路径，推荐使用这种方式，后续更新脚本时不容易被覆盖：
+
+```bat
+set CURSOR_INSTALL_DIR=D:\Tools\cursor
+set CURSOR_USER_DATA_DIR=%APPDATA%\Cursor
+python CursorHanHua_GongJu.py
+```
+
+变量说明：
+
+- `CURSOR_INSTALL_DIR`：Cursor 安装根目录，里面应包含 `Cursor.exe` 和 `resources\app`。
+- `CURSOR_USER_DATA_DIR`：Cursor 用户数据目录，默认是 `%APPDATA%\Cursor`。如果你启动 Cursor 时使用了 `--user-data-dir`，这里要改成对应目录。
+
+也可以打开 `CursorHanHua_GongJu.py`，查看文件开头的 **用户配置区域**：
 
 ```python
 # ★★★ 用户配置区域 ★★★
-CURSOR_AN_ZHUANG_LU_JING = r"D:\Tools\cursor"
-CURSOR_SHU_JU_LU_JING    = r"D:\Tools\cursor\user"
+CURSOR_AN_ZHUANG_LU_JING = CaiCe_Cursor_AnZhuang_LuJing()
+CURSOR_SHU_JU_LU_JING    = CaiCe_Cursor_ShuJu_LuJing()
 ```
 
-将两个路径分别替换为您的 Cursor 实际安装路径和用户数据目录（存放认证令牌的目录）。
+如果需要固定写死路径，可将它们改成您的 Cursor 实际安装路径和用户数据目录（存放认证令牌的目录）：
+
+```python
+CURSOR_AN_ZHUANG_LU_JING = r"D:\Tools\cursor"
+CURSOR_SHU_JU_LU_JING    = r"%APPDATA%\Cursor"
+```
 
 同样，打开 `QiDong_Cursor_ZhongWen.bat`，修改顶部的配置变量：
 
 ```bat
-set "CURSOR_EXE=D:\Tools\cursor\Cursor.exe"
-set "CURSOR_USER_DIR=D:\Tools\cursor\user"
-set "HANHUA_SCRIPT=e:\OPENCLAW\CursorHanHua_GongJu.py"
+set CURSOR_INSTALL_DIR=D:\Tools\cursor
+set CURSOR_USER_DATA_DIR=%APPDATA%\Cursor
 ```
 
 ## 工作原理
@@ -71,9 +117,13 @@ Python 脚本
 
 2. **翻译机制**：`cursor_hanhua.js` 使用 JavaScript 的 `MutationObserver` API 监听 DOM 变化。当 Cursor Settings 页面渲染出英文文本时，脚本会实时将其替换为对应的中文翻译。
 
-3. **翻译字典**：使用 `Map` 数据结构存储英文→中文的映射关系（500+ 条），查找效率为 O(1)；同时支持正则模式匹配，用于翻译带动态数字的文本（如"3 requests remaining"）。
+3. **翻译字典**：使用 `Map` 数据结构存储英文→中文的映射关系，查找效率为 O(1)；同时支持正则模式匹配，用于翻译带动态数字的文本（如 "3 requests remaining"）。
 
-4. **用量显示**：脚本在 Cursor 设置页面的用户邮箱下方自动插入用量信息卡片，包含：
+4. **拼接文本处理**：部分 Cursor 文案会被 DOM 拆成多段，例如中间夹着图标、链接或动态变量。脚本增加了片段级翻译和页面级修正逻辑，避免只翻译半句。
+
+5. **市场插件翻译**：市场页和插件详情页会保留英文插件名，并追加中文括号名。插件说明优先使用内置词典。市场页右上角可通过 `插件描述：中文/英文` 按钮切换说明语言。为避免打开市场变慢，未知说明的在线翻译默认关闭；如确实需要，可在 Cursor 开发者工具中执行 `localStorage.setItem('cursor_hanhua_market_online_translate', '1')` 后重启 Cursor。
+
+6. **用量显示**：脚本在 Cursor 设置页面的用户邮箱下方自动插入用量信息卡片，包含：
    - 总用量进度条（已用 / 总限额，颜色随使用率变化）
    - 高级模型（gpt-4 类）用量进度条
    - 计费周期重置日期
@@ -81,19 +131,21 @@ Python 脚本
    - 距重置日期的倒计时（≤3 天时变黄色预警）
    - 点击卡片可立即刷新用量数据，每 60 秒自动刷新一次
 
-5. **认证方式**：脚本自动从 `state.vscdb`（Cursor 本地 SQLite 数据库）读取 `cursorAuth/accessToken`，无需手动配置 API Key。令牌以 Base64 编码嵌入 JS 文件，在浏览器端解码后用于 API 请求。
+7. **认证方式**：脚本自动从 `state.vscdb`（Cursor 本地 SQLite 数据库）读取 `cursorAuth/accessToken`，无需手动配置 API Key。令牌以 Base64 编码嵌入 JS 文件，在浏览器端解码后用于 API 请求。
 
-6. **性能保障**：
+8. **性能保障**：
    - 所有翻译操作通过 `requestAnimationFrame` 批量合并到下一帧执行，不阻塞 UI 线程
    - 只处理新增/变化的 DOM 节点（增量翻译），不做全量扫描
    - 自动跳过编辑器区域（`.monaco-editor` 等），不影响代码编辑
    - 跳过 `<textarea>`、`<input>`、`<code>`、`<pre>` 等不应翻译的元素
+   - 页面级修正带节流和关键词判断，避免普通页面反复扫描所有特殊修正规则
+   - 市场页在线翻译默认关闭；如手动开启，也带本地缓存和单轮数量限制，减少打开页面时的卡顿
 
-7. **版本兼容**：Cursor 更新时会覆盖 `workbench.html`，汉化注入会被清除。使用 `QiDong_Cursor_ZhongWen.bat` 启动时会自动检测并重新注入，因此无论版本如何更新都能保持汉化。
+9. **版本兼容**：Cursor 更新时会覆盖 `workbench.html`，汉化注入会被清除。使用 `QiDong_Cursor_ZhongWen.bat` 启动时会自动检测并重新注入，因此无论版本如何更新都能保持汉化。
 
-8. **幂等性**：脚本可重复运行，不会重复注入。如果检测到已注入，只会更新翻译 JS 文件内容（以便字典更新和用量数据刷新生效）。
+10. **幂等性**：脚本可重复运行，不会重复注入。如果检测到已注入，只会更新翻译 JS 文件内容（以便字典更新和用量数据刷新生效）。
 
-9. **校验值同步**：Cursor 通过 `product.json` 中的 `checksums` 字段校验核心文件的 SHA256 哈希值。修改 `workbench.html` 后如不更新校验值，Cursor 启动时会提示 "Your Cursor installation appears to be corrupt. Please reinstall."。脚本会自动重新计算并更新校验值，避免此提示。
+11. **校验值同步**：Cursor 通过 `product.json` 中的 `checksums` 字段校验核心文件的 SHA256 哈希值。修改 `workbench.html` 后如不更新校验值，Cursor 启动时会提示 "Your Cursor installation appears to be corrupt. Please reinstall."。脚本会自动重新计算并更新校验值，避免此提示。
 
 ### 安全性
 

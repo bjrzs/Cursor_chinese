@@ -11,16 +11,23 @@ echo ============================================================
 echo.
 
 REM ============================================================
-REM ★★★ 用户配置区域 - 请根据您的实际路径修改 ★★★
+REM 用户配置区域 - 默认按本脚本所在位置自动推断 Cursor 根目录
+REM 如需手动指定，可在运行前设置：
+REM   set CURSOR_INSTALL_DIR=D:\Tools\cursor
+REM   set CURSOR_USER_DATA_DIR=D:\Tools\cursor\user
 REM ============================================================
-set "CURSOR_EXE=D:\Tools\cursor\Cursor.exe"
-set "CURSOR_USER_DIR=D:\Tools\cursor\user"
-set "HANHUA_SCRIPT=E:\Cursor_chinese\CursorHanHua_GongJu.py"
-set "WORKBENCH_HTML=D:\Tools\cursor\resources\app\out\vs\code\electron-sandbox\workbench\workbench.html"
+set "SCRIPT_DIR=%~dp0"
+for %%I in ("%SCRIPT_DIR%..") do set "AUTO_CURSOR_ROOT=%%~fI"
+if not defined CURSOR_INSTALL_DIR set "CURSOR_INSTALL_DIR=%AUTO_CURSOR_ROOT%"
+if not defined CURSOR_USER_DATA_DIR set "CURSOR_USER_DATA_DIR=%APPDATA%\Cursor"
+
+set "CURSOR_EXE=%CURSOR_INSTALL_DIR%\Cursor.exe"
+set "CURSOR_USER_DIR=%CURSOR_USER_DATA_DIR%"
+set "HANHUA_SCRIPT=%SCRIPT_DIR%CursorHanHua_GongJu.py"
+set "WORKBENCH_HTML=%CURSOR_INSTALL_DIR%\resources\app\out\vs\code\electron-sandbox\workbench\workbench.html"
 set "INJECTION_MARKER=CURSOR_HANHUA_INJECTION"
 REM ============================================================
 
-REM 检查 Cursor 是否存在
 if not exist "%CURSOR_EXE%" (
     echo [错误] 未找到 Cursor: %CURSOR_EXE%
     echo [提示] 请修改本文件中的 CURSOR_EXE 路径
@@ -28,14 +35,19 @@ if not exist "%CURSOR_EXE%" (
     exit /b 1
 )
 
-REM 检查汉化脚本是否存在
 if not exist "%HANHUA_SCRIPT%" (
     echo [错误] 未找到汉化脚本: %HANHUA_SCRIPT%
     pause
     exit /b 1
 )
 
-REM 检查 workbench.html 中是否已注入
+if not exist "%WORKBENCH_HTML%" (
+    echo [错误] 未找到 workbench.html: %WORKBENCH_HTML%
+    echo [提示] 请确认 Cursor 安装目录是否正确
+    pause
+    exit /b 1
+)
+
 findstr /c:"%INJECTION_MARKER%" "%WORKBENCH_HTML%" >nul 2>&1
 if %errorlevel% neq 0 (
     echo [检测] 汉化脚本未注入，正在注入...
@@ -50,15 +62,11 @@ if %errorlevel% neq 0 (
     )
 ) else (
     echo [检测] 汉化脚本已注入，跳过注入步骤
-    REM 静默更新 JS 文件（字典可能有更新）
     python "%HANHUA_SCRIPT%" >nul 2>&1
 )
 
 echo.
 echo [启动] 正在启动 Cursor...
-::start "" "%CURSOR_EXE%" --user-data-dir="%CURSOR_USER_DIR%"
-
 start "" "%CURSOR_EXE%" --user-data-dir="%CURSOR_USER_DIR%"
 
 echo [完成] Cursor 已启动
-

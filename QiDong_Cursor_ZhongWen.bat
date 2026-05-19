@@ -1,5 +1,3 @@
-cmdow @ /hid
-
 @echo off
 chcp 65001 >nul 2>&1
 title Cursor 中文版启动器
@@ -11,19 +9,16 @@ echo ============================================================
 echo.
 
 REM ============================================================
-REM 用户配置区域 - 默认按本脚本所在位置自动推断 Cursor 根目录
-REM 如需手动指定，可在运行前设置：
-REM   set CURSOR_INSTALL_DIR=D:\Tools\cursor
-REM   set CURSOR_USER_DATA_DIR=D:\Tools\cursor\user
+REM 用户配置区域 - 只需要改这里
+REM 安装目录：Cursor.exe 所在目录
+REM 用户目录：Cursor 的用户数据目录（存放登录信息）
+REM 脚本路径：汉化脚本本体
+REM workbench：需要注入的 Cursor 核心页面
 REM ============================================================
-set "SCRIPT_DIR=%~dp0"
-for %%I in ("%SCRIPT_DIR%..") do set "AUTO_CURSOR_ROOT=%%~fI"
-if not defined CURSOR_INSTALL_DIR set "CURSOR_INSTALL_DIR=%AUTO_CURSOR_ROOT%"
-if not defined CURSOR_USER_DATA_DIR set "CURSOR_USER_DATA_DIR=%APPDATA%\Cursor"
-
+set "CURSOR_INSTALL_DIR=C:\Program Files\Cursor"
+set "CURSOR_USER_DIR=%APPDATA%\Cursor"
+set "HANHUA_SCRIPT=%~dp0CursorHanHua_GongJu.py"
 set "CURSOR_EXE=%CURSOR_INSTALL_DIR%\Cursor.exe"
-set "CURSOR_USER_DIR=%CURSOR_USER_DATA_DIR%"
-set "HANHUA_SCRIPT=%SCRIPT_DIR%CursorHanHua_GongJu.py"
 set "WORKBENCH_HTML=%CURSOR_INSTALL_DIR%\resources\app\out\vs\code\electron-sandbox\workbench\workbench.html"
 set "INJECTION_MARKER=CURSOR_HANHUA_INJECTION"
 REM ============================================================

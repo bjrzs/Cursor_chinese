@@ -1,67 +1,91 @@
 @echo off
+setlocal EnableExtensions
 chcp 65001 >nul 2>&1
-title Cursor 中文版启动器
+title Cursor Launcher
 
 echo ============================================================
-echo   Cursor 中文版启动器
-echo   功能：自动注入汉化脚本后启动 Cursor
+echo   Cursor Launcher
+echo   Auto inject translation script, then start Cursor
 echo ============================================================
 echo.
 
-REM ============================================================
-REM 用户配置区域 - 只需要改这里
-REM 安装目录：Cursor.exe 所在目录
-REM 用户目录：Cursor 的用户数据目录（存放登录信息）
-REM 脚本路径：汉化脚本本体
-REM workbench：需要注入的 Cursor 核心页面
-REM ============================================================
-set "CURSOR_INSTALL_DIR=C:\Program Files\Cursor"
-set "CURSOR_USER_DIR=%APPDATA%\Cursor"
-set "HANHUA_SCRIPT=%~dp0CursorHanHua_GongJu.py"
-set "CURSOR_EXE=%CURSOR_INSTALL_DIR%\Cursor.exe"
-set "WORKBENCH_HTML=%CURSOR_INSTALL_DIR%\resources\app\out\vs\code\electron-sandbox\workbench\workbench.html"
+set "SCRIPT_DIR=%~dp0"
+set "HANHUA_SCRIPT=%SCRIPT_DIR%CursorHanHua_GongJu.py"
 set "INJECTION_MARKER=CURSOR_HANHUA_INJECTION"
-REM ============================================================
+set "CURSOR_USER_DIR=%APPDATA%\Cursor"
 
-if not exist "%CURSOR_EXE%" (
-    echo [错误] 未找到 Cursor: %CURSOR_EXE%
-    echo [提示] 请修改本文件中的 CURSOR_EXE 路径
+if defined CURSOR_USER_DATA_DIR set "CURSOR_USER_DIR=%CURSOR_USER_DATA_DIR%"
+
+if defined CURSOR_INSTALL_DIR (
+    if not exist "%CURSOR_INSTALL_DIR%\Cursor.exe" set "CURSOR_INSTALL_DIR="
+)
+
+if not defined CURSOR_INSTALL_DIR (
+    if defined CURSOR_ROOT (
+        if exist "%CURSOR_ROOT%\Cursor.exe" set "CURSOR_INSTALL_DIR=%CURSOR_ROOT%"
+    )
+)
+
+if not defined CURSOR_INSTALL_DIR call :DetectCursorDir
+
+if not defined CURSOR_INSTALL_DIR (
+    echo [ERROR] Cursor install directory not found.
+    echo [TIP] Set CURSOR_INSTALL_DIR or install Cursor in a common path.
     pause
     exit /b 1
 )
 
+set "CURSOR_EXE=%CURSOR_INSTALL_DIR%\Cursor.exe"
+set "WORKBENCH_HTML=%CURSOR_INSTALL_DIR%\resources\app\out\vs\code\electron-sandbox\workbench\workbench.html"
+
 if not exist "%HANHUA_SCRIPT%" (
-    echo [错误] 未找到汉化脚本: %HANHUA_SCRIPT%
+    echo [ERROR] Translation script not found: %HANHUA_SCRIPT%
+    pause
+    exit /b 1
+)
+
+if not exist "%CURSOR_EXE%" (
+    echo [ERROR] Cursor.exe not found: %CURSOR_EXE%
     pause
     exit /b 1
 )
 
 if not exist "%WORKBENCH_HTML%" (
-    echo [错误] 未找到 workbench.html: %WORKBENCH_HTML%
-    echo [提示] 请确认 Cursor 安装目录是否正确
+    echo [ERROR] workbench.html not found: %WORKBENCH_HTML%
+    echo [TIP] Check whether CURSOR_INSTALL_DIR is correct.
     pause
     exit /b 1
 )
 
 findstr /c:"%INJECTION_MARKER%" "%WORKBENCH_HTML%" >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [检测] 汉化脚本未注入，正在注入...
-    echo.
+if errorlevel 1 (
+    echo [CHECK] Not injected, running translation...
     python "%HANHUA_SCRIPT%"
-    if %errorlevel% neq 0 (
+    if errorlevel 1 (
         echo.
-        echo [错误] 汉化注入失败，尝试直接启动 Cursor...
+        echo [ERROR] Translation failed, still trying to start Cursor...
     ) else (
         echo.
-        echo [成功] 汉化脚本注入完成
+        echo [OK] Translation completed
     )
 ) else (
-    echo [检测] 汉化脚本已注入，跳过注入步骤
-    python "%HANHUA_SCRIPT%" >nul 2>&1
+    echo [CHECK] Already injected, starting Cursor directly
 )
 
 echo.
-echo [启动] 正在启动 Cursor...
+echo [START] Launching Cursor...
 start "" "%CURSOR_EXE%" --user-data-dir="%CURSOR_USER_DIR%"
+echo [DONE] Cursor launched
+exit /b 0
 
-echo [完成] Cursor 已启动
+:DetectCursorDir
+for %%D in (
+    "%LOCALAPPDATA%\Programs\Cursor"
+    "%PROGRAMFILES%\Cursor"
+    "%PROGRAMFILES(X86)%\Cursor"
+) do (
+    if not defined CURSOR_INSTALL_DIR if exist "%%~fD\Cursor.exe" if exist "%%~fD\resources\app" (
+        set "CURSOR_INSTALL_DIR=%%~fD"
+    )
+)
+exit /b 0

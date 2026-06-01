@@ -23,12 +23,42 @@ import urllib.request  # HTTP 请求
 import urllib.error  # HTTP 错误处理
 
 
+def ZhanKai_LuJing(LuJing):
+    """Expand environment variables and user home markers in a path."""
+    if not LuJing:
+        return ""
+    return os.path.abspath(os.path.expandvars(os.path.expanduser(LuJing)))
+
+
+def HuoQu_Cursor_App_MuLu(LuJing):
+    """Return Cursor's resources/app directory for Windows or macOS installs."""
+    LuJing = ZhanKai_LuJing(LuJing)
+    HouXuan = [
+        os.path.join(LuJing, "resources", "app"),
+        os.path.join(LuJing, "Contents", "Resources", "app"),
+        LuJing,
+    ]
+    for MuLu in HouXuan:
+        if os.path.exists(os.path.join(MuLu, "product.json")) and os.path.exists(os.path.join(MuLu, "out")):
+            return MuLu
+    return os.path.join(LuJing, "resources", "app")
+
+
+def Shi_Cursor_AnZhuang_LuJing(LuJing):
+    """Check whether a candidate points to a Cursor install or resources/app directory."""
+    if not LuJing:
+        return False
+    App_MuLu = HuoQu_Cursor_App_MuLu(LuJing)
+    Workbench = os.path.join(App_MuLu, "out", "vs", "code", "electron-sandbox", "workbench", "workbench.html")
+    return os.path.exists(os.path.join(App_MuLu, "product.json")) and os.path.exists(Workbench)
+
+
 def CaiCe_Cursor_AnZhuang_LuJing():
     """优先使用环境变量，否则从脚本位置和常见安装目录推断 Cursor 根目录。"""
     HuanJing = os.environ.get("CURSOR_INSTALL_DIR") or os.environ.get("CURSOR_ROOT")
     HouXuan = []
     if HuanJing:
-        HouXuan.append(HuanJing)
+        HouXuan.append(ZhanKai_LuJing(HuanJing))
 
     JiaoBen_MuLu = os.path.dirname(os.path.abspath(__file__))
     HouXuan.extend([
@@ -36,26 +66,33 @@ def CaiCe_Cursor_AnZhuang_LuJing():
         os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "cursor"),
         os.path.join(os.environ.get("PROGRAMFILES", ""), "Cursor"),
         os.path.join(os.environ.get("PROGRAMFILES(X86)", ""), "Cursor"),
+        "/Applications/Cursor.app",
+        os.path.join(os.path.expanduser("~"), "Applications", "Cursor.app"),
     ])
 
     for LuJing in HouXuan:
-        if not LuJing:
-            continue
-        if os.path.exists(os.path.join(LuJing, "Cursor.exe")) and os.path.exists(os.path.join(LuJing, "resources", "app")):
-            return os.path.abspath(LuJing)
+        LuJing = ZhanKai_LuJing(LuJing)
+        if Shi_Cursor_AnZhuang_LuJing(LuJing):
+            return LuJing
 
-    return os.path.abspath(HuanJing or os.path.dirname(JiaoBen_MuLu))
+    return ZhanKai_LuJing(HuanJing or os.path.dirname(JiaoBen_MuLu))
 
 
 def CaiCe_Cursor_ShuJu_LuJing():
     """优先使用环境变量，否则使用当前用户默认 Cursor 数据目录。"""
     HuanJing = os.environ.get("CURSOR_USER_DATA_DIR")
     if HuanJing:
-        return os.path.abspath(HuanJing)
+        return ZhanKai_LuJing(HuanJing)
 
     AppData = os.environ.get("APPDATA")
     if AppData:
         return os.path.join(AppData, "Cursor")
+
+    if sys.platform == "darwin":
+        return os.path.join(os.path.expanduser("~"), "Library", "Application Support", "Cursor")
+
+    if os.name == "posix":
+        return os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.join(os.path.expanduser("~"), ".config")), "Cursor")
 
     return os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "Cursor")
 
@@ -74,7 +111,7 @@ CURSOR_AN_ZHUANG_LU_JING = CaiCe_Cursor_AnZhuang_LuJing()
 CURSOR_SHU_JU_LU_JING = CaiCe_Cursor_ShuJu_LuJing()
 
 # 以下路径一般不需要修改
-GONG_ZUO_TAI_HTML_XIANG_DUI = r"resources\app\out\vs\code\electron-sandbox\workbench"  # workbench 目录相对路径
+GONG_ZUO_TAI_HTML_XIANG_DUI = os.path.join("out", "vs", "code", "electron-sandbox", "workbench")  # workbench 目录相对路径
 GONG_ZUO_TAI_HTML_MING = "workbench.html"  # workbench HTML 文件名
 HAN_HUA_JS_MING = "cursor_hanhua.js"  # 翻译脚本文件名
 ZHU_RU_BIAO_JI = "<!-- CURSOR_HANHUA_INJECTION -->"  # 注入标记
@@ -86,7 +123,7 @@ API_YONG_LIANG_ZONG_JIE = "https://www.cursor.com/api/usage-summary"  # 总用�
 API_GE_REN_XIN_XI = "https://api2.cursor.sh/auth/full_stripe_profile"  # 个人信息
 
 # state.vscdb 中的认证键名
-DB_XIANG_DUI_LU_JING = r"User\globalStorage\state.vscdb"  # 数据库相对路径
+DB_XIANG_DUI_LU_JING = os.path.join("User", "globalStorage", "state.vscdb")  # 数据库相对路径
 LING_PAI_JIAN_MING = "cursorAuth/accessToken"  # 访问令牌键名
 YOU_XIANG_JIAN_MING = "cursorAuth/cachedEmail"  # 邮箱键名
 
@@ -2567,7 +2604,12 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
 def HuoQu_GongZuoTai_LuJing():
     """获取 workbench 目录完整路径"""
-    return os.path.join(CURSOR_AN_ZHUANG_LU_JING, GONG_ZUO_TAI_HTML_XIANG_DUI)
+    return os.path.join(HuoQu_Cursor_App_MuLu(CURSOR_AN_ZHUANG_LU_JING), GONG_ZUO_TAI_HTML_XIANG_DUI)
+
+
+def HuoQu_Product_LuJing():
+    """获取 product.json 完整路径"""
+    return os.path.join(HuoQu_Cursor_App_MuLu(CURSOR_AN_ZHUANG_LU_JING), "product.json")
 
 
 def HuoQu_HTML_LuJing():
@@ -2641,7 +2683,7 @@ def ZhuRu_HTML():
 
 def GengXin_JiaoYan_Zhi():
     """更新 product.json 中 workbench.html 的校验哈希值"""
-    LuJing_Product = os.path.join(CURSOR_AN_ZHUANG_LU_JING, "resources", "app", "product.json")
+    LuJing_Product = HuoQu_Product_LuJing()
     LuJing_Html = HuoQu_HTML_LuJing()
 
     if not os.path.exists(LuJing_Product):
@@ -2789,7 +2831,7 @@ def YiChu_KuoZhan_FanYi_QiaoJie():
 
 def HuiFu_JiaoYan_Zhi():
     """恢复 product.json 的原始校验值"""
-    LuJing_Product = os.path.join(CURSOR_AN_ZHUANG_LU_JING, "resources", "app", "product.json")
+    LuJing_Product = HuoQu_Product_LuJing()
     LuJing_Product_BeiFen = LuJing_Product + BEI_FEN_HOU_ZHUI
     if os.path.exists(LuJing_Product_BeiFen):
         shutil.copy2(LuJing_Product_BeiFen, LuJing_Product)

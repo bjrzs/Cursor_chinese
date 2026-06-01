@@ -11,7 +11,8 @@
 | 文件 | 说明 |
 |------|------|
 | `CursorHanHua_GongJu.py` | Python 汉化注入主程序（核心脚本） |
-| `QiDong_Cursor_ZhongWen.bat` | 一键启动批处理文件（自动注入 + 启动 Cursor） |
+| `QiDong_Cursor_ZhongWen.bat` | Windows 一键启动批处理文件（自动注入 + 启动 Cursor） |
+| `QiDong_Cursor_ZhongWen.command` | macOS 一键启动脚本（自动注入 + 启动 Cursor） |
 | `cursor_setting_lookup.js` | 辅助查找 Cursor 设置文案来源的工具 |
 | `README.md` | 本说明文档 |
 
@@ -32,7 +33,8 @@
 ## 文件更新说明
 
 - `CursorHanHua_GongJu.py`：增加了市场页、插件详情页、技能页、MCP、欢迎页、菜单、模型页等汉化；补了拼接文本处理、市场页开关按钮、在线翻译兜底和路径自动推断。
-- `QiDong_Cursor_ZhongWen.bat`：改成顶部集中配置路径，方便用户直接对照截图修改；去掉了容易触发安全软件拦截的静默窗口辅助调用。
+- `QiDong_Cursor_ZhongWen.bat`：Windows 版启动入口，支持自动探测常见安装路径。
+- `QiDong_Cursor_ZhongWen.command`：macOS 版启动入口，支持 Apple Silicon 和 Intel Mac，优先探测 `/Applications/Cursor.app`。
 - `cursor_setting_lookup.js`：补了默认安装目录自动推断，方便查找 Cursor 设置字符串来源。
 - `README.md`：补充本次更新内容、路径修改方式、市场翻译开关、性能优化和安全注意事项。
 
@@ -40,7 +42,7 @@
 
 ### 方法一：一键启动（推荐）
 
-推荐将本工具目录放在 Cursor 安装目录下或旁边，例如：
+Windows 推荐将本工具目录放在 Cursor 安装目录下或旁边，例如：
 
 ```text
 D:\Tools\cursor\
@@ -52,6 +54,8 @@ D:\Tools\cursor\
 ```
 
 双击 `QiDong_Cursor_ZhongWen.bat`，它会自动检测汉化状态并注入，然后启动 Cursor。
+
+macOS 推荐将本工具目录放在 `~/Applications` 或任意你方便保留的位置，然后双击 `QiDong_Cursor_ZhongWen.command`。首次运行如果提示权限，可以在终端里执行一次 `chmod +x QiDong_Cursor_ZhongWen.command`。
 
 ### 方法二：手动注入
 
@@ -67,7 +71,7 @@ python CursorHanHua_GongJu.py --huifu
 
 ## 修改安装路径
 
-现在批处理文件顶部直接给出了四个需要确认的路径，和你截图里保持一致：
+现在 Windows 批处理文件顶部直接给出了几个需要确认的路径，方便你直接对照修改；macOS 脚本则会优先自动识别 `/Applications/Cursor.app` 和用户目录。
 
 ```bat
 set "CURSOR_INSTALL_DIR=C:\Program Files\Cursor"
@@ -77,6 +81,13 @@ set "CURSOR_EXE=%CURSOR_INSTALL_DIR%\Cursor.exe"
 set "WORKBENCH_HTML=%CURSOR_INSTALL_DIR%\resources\app\out\vs\code\electron-sandbox\workbench\workbench.html"
 ```
 
+macOS 对应路径通常是：
+
+```sh
+CURSOR_INSTALL_DIR=/Applications/Cursor.app
+CURSOR_USER_DATA_DIR="$HOME/Library/Application Support/Cursor"
+```
+
 变量说明：
 
 - `CURSOR_INSTALL_DIR`：Cursor 安装根目录，里面应包含 `Cursor.exe` 和 `resources\app`。
@@ -84,6 +95,7 @@ set "WORKBENCH_HTML=%CURSOR_INSTALL_DIR%\resources\app\out\vs\code\electron-sand
 - `HANHUA_SCRIPT`：汉化脚本本体路径，默认使用 bat 同目录下的 `CursorHanHua_GongJu.py`。
 - `CURSOR_EXE`：Cursor 可执行文件路径，通常是 `C:\Program Files\Cursor\Cursor.exe`。
 - `WORKBENCH_HTML`：要注入的 `workbench.html` 路径，通常是 `C:\Program Files\Cursor\resources\app\out\vs\code\electron-sandbox\workbench\workbench.html`。
+- macOS 下 `CURSOR_INSTALL_DIR` 可以直接指向 `/Applications/Cursor.app`，`CURSOR_USER_DATA_DIR` 默认是 `~/Library/Application Support/Cursor`。
 
 也可以打开 `CursorHanHua_GongJu.py`，查看文件开头的 **用户配置区域**：
 

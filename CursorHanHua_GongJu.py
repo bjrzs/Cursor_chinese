@@ -22,19 +22,96 @@ import sqlite3  # SQLite 数据库
 import urllib.request  # HTTP 请求
 import urllib.error  # HTTP 错误处理
 
+
+def ZhanKai_LuJing(LuJing):
+    """Expand environment variables and user home markers in a path."""
+    if not LuJing:
+        return ""
+    return os.path.abspath(os.path.expandvars(os.path.expanduser(LuJing)))
+
+
+def HuoQu_Cursor_App_MuLu(LuJing):
+    """Return Cursor's resources/app directory for Windows or macOS installs."""
+    LuJing = ZhanKai_LuJing(LuJing)
+    HouXuan = [
+        os.path.join(LuJing, "resources", "app"),
+        os.path.join(LuJing, "Contents", "Resources", "app"),
+        LuJing,
+    ]
+    for MuLu in HouXuan:
+        if os.path.exists(os.path.join(MuLu, "product.json")) and os.path.exists(os.path.join(MuLu, "out")):
+            return MuLu
+    return os.path.join(LuJing, "resources", "app")
+
+
+def Shi_Cursor_AnZhuang_LuJing(LuJing):
+    """Check whether a candidate points to a Cursor install or resources/app directory."""
+    if not LuJing:
+        return False
+    App_MuLu = HuoQu_Cursor_App_MuLu(LuJing)
+    Workbench = os.path.join(App_MuLu, "out", "vs", "code", "electron-sandbox", "workbench", "workbench.html")
+    return os.path.exists(os.path.join(App_MuLu, "product.json")) and os.path.exists(Workbench)
+
+
+def CaiCe_Cursor_AnZhuang_LuJing():
+    """优先使用环境变量，否则从脚本位置和常见安装目录推断 Cursor 根目录。"""
+    HuanJing = os.environ.get("CURSOR_INSTALL_DIR") or os.environ.get("CURSOR_ROOT")
+    HouXuan = []
+    if HuanJing:
+        HouXuan.append(ZhanKai_LuJing(HuanJing))
+
+    JiaoBen_MuLu = os.path.dirname(os.path.abspath(__file__))
+    HouXuan.extend([
+        os.path.dirname(JiaoBen_MuLu),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "cursor"),
+        os.path.join(os.environ.get("PROGRAMFILES", ""), "Cursor"),
+        os.path.join(os.environ.get("PROGRAMFILES(X86)", ""), "Cursor"),
+        "/Applications/Cursor.app",
+        os.path.join(os.path.expanduser("~"), "Applications", "Cursor.app"),
+    ])
+
+    for LuJing in HouXuan:
+        LuJing = ZhanKai_LuJing(LuJing)
+        if Shi_Cursor_AnZhuang_LuJing(LuJing):
+            return LuJing
+
+    return ZhanKai_LuJing(HuanJing or os.path.dirname(JiaoBen_MuLu))
+
+
+def CaiCe_Cursor_ShuJu_LuJing():
+    """优先使用环境变量，否则使用当前用户默认 Cursor 数据目录。"""
+    HuanJing = os.environ.get("CURSOR_USER_DATA_DIR")
+    if HuanJing:
+        return ZhanKai_LuJing(HuanJing)
+
+    AppData = os.environ.get("APPDATA")
+    if AppData:
+        return os.path.join(AppData, "Cursor")
+
+    if sys.platform == "darwin":
+        return os.path.join(os.path.expanduser("~"), "Library", "Application Support", "Cursor")
+
+    if os.name == "posix":
+        return os.path.join(os.environ.get("XDG_CONFIG_HOME", os.path.join(os.path.expanduser("~"), ".config")), "Cursor")
+
+    return os.path.join(os.path.expanduser("~"), "AppData", "Roaming", "Cursor")
+
+
 # ============================================================
 # ★★★ 用户配置区域 ★★★
 # ============================================================
 
-# Cursor 安装根目录
-CURSOR_AN_ZHUANG_LU_JING = r"D:\Tools\cursor"
+# Cursor 安装根目录。
+# 可通过环境变量 CURSOR_INSTALL_DIR 覆盖，例如：
+#   set CURSOR_INSTALL_DIR=D:\Tools\cursor
+CURSOR_AN_ZHUANG_LU_JING = CaiCe_Cursor_AnZhuang_LuJing()
 
 # Cursor 用户数据目录（存放认证令牌等）
-# 如果使用 --user-data-dir 自定义了目录，请改为对应路径
-CURSOR_SHU_JU_LU_JING = r"D:\Tools\cursor\user"
+# 如果使用 --user-data-dir 自定义了目录，可通过 CURSOR_USER_DATA_DIR 覆盖。
+CURSOR_SHU_JU_LU_JING = CaiCe_Cursor_ShuJu_LuJing()
 
 # 以下路径一般不需要修改
-GONG_ZUO_TAI_HTML_XIANG_DUI = r"resources\app\out\vs\code\electron-sandbox\workbench"  # workbench 目录相对路径
+GONG_ZUO_TAI_HTML_XIANG_DUI = os.path.join("out", "vs", "code", "electron-sandbox", "workbench")  # workbench 目录相对路径
 GONG_ZUO_TAI_HTML_MING = "workbench.html"  # workbench HTML 文件名
 HAN_HUA_JS_MING = "cursor_hanhua.js"  # 翻译脚本文件名
 ZHU_RU_BIAO_JI = "<!-- CURSOR_HANHUA_INJECTION -->"  # 注入标记
@@ -46,9 +123,32 @@ API_YONG_LIANG_ZONG_JIE = "https://www.cursor.com/api/usage-summary"  # 总用�
 API_GE_REN_XIN_XI = "https://api2.cursor.sh/auth/full_stripe_profile"  # 个人信息
 
 # state.vscdb 中的认证键名
-DB_XIANG_DUI_LU_JING = r"User\globalStorage\state.vscdb"  # 数据库相对路径
+DB_XIANG_DUI_LU_JING = os.path.join("User", "globalStorage", "state.vscdb")  # 数据库相对路径
 LING_PAI_JIAN_MING = "cursorAuth/accessToken"  # 访问令牌键名
 YOU_XIANG_JIAN_MING = "cursorAuth/cachedEmail"  # 邮箱键名
+
+# Cursor 内置扩展的简中桥接翻译。
+# VS Code 官方语言包不会覆盖 anysphere.*，这里补上最常见的私有扩展元信息。
+KUO_ZHAN_FAN_YI_QIAO_JIE = {
+    "anysphere.cursor-always-local": {
+        "package": {
+            "displayName": "Cursor 始终本地",
+            "description": "为 Cursor 提供实验性本地功能。"
+        }
+    },
+    "anysphere.cursor-retrieval": {
+        "package": {
+            "displayName": "Cursor 检索",
+            "description": "处理 Cursor 的索引与检索能力。"
+        }
+    },
+    "anysphere.cursor-shadow-workspace": {
+        "package": {
+            "displayName": "Cursor 影子工作区",
+            "description": "管理一个供 AI 智能体在展示前整理代码的隐藏本地窗口。"
+        }
+    }
+}
 
 
 # ============================================================
@@ -263,6 +363,21 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["Manage", "管理"],
         ["Manage your account and billing", "管理您的账户和账单"],
         ["Plan & Usage", "计划与用量"],
+        ["CURRENT PLAN", "当前计划"],
+        ["UPGRADE AVAILABLE", "可升级"],
+        ["Upgrade Available", "可升级"],
+        ["Included in Pro", "Pro 已包含"],
+        ["Included In Pro", "Pro 已包含"],
+        ["Resets on", "重置日期"],
+        ["Agent", "智能体"],
+        ["Auto", "自动"],
+        ["Composer", "Composer"],
+        ["Auto + Composer", "自动 + Composer"],
+        ["API", "API"],
+        ["API used", "API 已用"],
+        ["Auto used", "Auto 已用"],
+        ["Additional usage beyond limits consumes API quota or on-demand spend.", "超出限额的额外用量会消耗 API 配额或按需消费。"],
+        ["Additional usage beyond limits consumes on-demand spend. Your plan includes at least $20 of API usage.", "超出限额的额外用量会产生按需消费。您的计划至少包含 20 美元 API 用量。"],
         ["Upgrade", "升级"],
         ["Upgrade to Pro", "升级到专业版"],
         ["Upgrade to Pro now", "立即升级到专业版"],
@@ -696,16 +811,19 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["Skills help the agent accomplish specific tasks", "技能帮助智能体完成特定任务"],
         ["Skills are specialized capabilities that help the agent accomplish specific tasks. Skills will be invoked by the agent when relevant or can be triggered manually with / in chat.", "技能是帮助智能体完成特定任务的专门能力。智能体会在相关时调用技能，也可以在聊天中使用 / 手动触发。"],
         ["No Skills Yet", "暂无技能"],
+        ["New Skill", "新建技能"],
         ["Delete Skill", "删除技能"],
         ["Subagents", "子智能体"],
         ["Create specialized agents for complex tasks. Subagents can be invoked by the agent to handle focused work in parallel.", "为复杂任务创建专门的智能体。子智能体可以被智能体调用，以并行处理专注的工作。"],
         ["Create specialized agents to handle focused tasks", "创建专门的智能体来处理专注的任务"],
         ["No Subagents Yet", "暂无子智能体"],
+        ["New Subagent", "新建子智能体"],
         ["Delete Subagent", "删除子智能体"],
         ["Commands", "命令"],
         ["Create commands to build reusable workflows", "创建命令以构建可复用的工作流"],
         ["Create reusable workflows triggered with / prefix in chat. Use commands to standardize processes and make common tasks more efficient.", "创建在聊天中使用 / 前缀触发的可复用工作流。使用命令来标准化流程，使常见任务更高效。"],
         ["No Commands Yet", "暂无命令"],
+        ["New Command", "新建命令"],
         ["Delete Command", "删除命令"],
         ["Learn about Rules", "了解规则"],
         ["Learn about Skills", "了解技能"],
@@ -736,9 +854,55 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["Servers available in this workspace.", "此工作区中可用的服务器。"],
         ["User MCP Servers", "用户 MCP 服务器"],
         ["No User MCP Tools", "暂无用户 MCP 工具"],
+        ["Add a custom MCP tool here or configure project-specific tools", "在此添加自定义 MCP 工具，或配置项目专用工具"],
+        ["Add a custom MCP tool here or configure project-specific tools in <project-root>/.cursor/mcp.json", "在此添加自定义 MCP 工具，或在 <project-root>/.cursor/mcp.json 中配置项目专用工具"],
+        ["Add a custom MCP tool here", "在此添加自定义 MCP 工具"],
+        ["or configure project-specific tools", "或配置项目专用工具"],
+        ["Add a", "添加"],
+        ["tool here", "工具"],
+        ["in <project-root>/.cursor/mcp.json", "位置：<project-root>/.cursor/mcp.json"],
+        ["in <project-root>/", "位置：<project-root>/"],
+        [".cursor/mcp.json", ".cursor/mcp.json"],
+        ["custom MCP tool", "自定义 MCP 工具"],
+        ["project-specific tools", "项目专用工具"],
         ["Add a custom MCP tool in your user MCP config.", "在用户 MCP 配置中添加自定义 MCP 工具。"],
         ["Add Custom MCP", "添加自定义 MCP"],
         ["Configure Team MCP Servers", "配置团队 MCP 服务器"],
+        ["Cursor Settings", "Cursor 设置"],
+        ["Meet the new Agents Window", "认识全新的智能体窗口"],
+        ["Agents Window", "智能体窗口"],
+        ["Open Codex Sidebar", "打开 Codex 侧边栏"],
+        ["Export Transcript", "导出对话记录"],
+        ["Copy Request ID", "复制请求 ID"],
+        ["Give Feedback", "提供反馈"],
+        ["Agent Settings", "智能体设置"],
+        ["Configure Icon Visibility", "配置图标可见性"],
+        ["Jump back to the Agents Window to keep working across repos.", "返回智能体窗口以继续跨仓库工作。"],
+        ["Switch to Agents Window", "切换到智能体窗口"],
+        ["Meet the new Cursor", "认识全新的 Cursor"],
+        ["Run Many Agents in Parallel", "并行运行多个智能体"],
+        ["All your agents across repos—locally, on remote SSH, and in the cloud", "您的所有智能体都可跨仓库运行，可在本地、远程 SSH 和云端使用"],
+        ["Dig Deeper Anytime", "随时深入探索"],
+        ["Access the best parts of the editor when you need them, like files and browser", "在需要时访问编辑器中最好用的部分，例如文件和浏览器"],
+        ["Run many agents in parallel — across repos, locally, on remote SSH, and in the cloud.", "并行运行多个智能体，可跨仓库、本地、远程 SSH 和云端。"],
+        ["Try it now", "立即体验"],
+        ["Open project", "打开项目"],
+        ["Clone repo", "克隆仓库"],
+        ["New Window", "新建窗口"],
+        ["Recent projects", "最近项目"],
+        ["Agent Window", "智能体窗口"],
+        ["You can clone a repository locally.", "您可以在本地克隆一个仓库。"],
+        ["To learn more about how to use Git and source control in VS Code read our docs.", "若想进一步了解如何在 VS Code 中使用 Git 和源代码管理，请阅读我们的文档。"],
+        ["read our docs.", "阅读我们的文档。"],
+        ["Window Layout", "窗口布局"],
+        ["Switch between Agent and Editor default layouts", "在智能体和编辑器默认布局之间切换"],
+        ["Auto-Approve Mode Transitions", "自动批准模式切换"],
+        ["Allow Agent to switch modes without asking first, such as Agent to Plan or Agent to Debug. When off, Cursor asks before switching.", "允许智能体在不先询问的情况下切换模式，例如从智能体切换到计划模式或调试模式。关闭后，Cursor 会在切换前询问。"],
+        ["Compact Terminal Tool Calls", "紧凑显示终端工具调用"],
+        ["Show terminal commands in compact view by default", "默认以紧凑视图显示终端命令"],
+        ["Explore subagent model", "Explore 子智能体模型"],
+        ["The Explore subagent is used to do initial research for the main agent", "Explore 子智能体用于为主智能体做初步调研"],
+        ["Enabled by Run Everything Auto-Run Mode: Agent bypasses approval prompts for tools including Web Search", "由“全部运行”自动运行模式启用：智能体会跳过包括网页搜索在内的工具审批提示"],
 
         // ==================== 钩子 (Hooks) 页面 ====================
         ["Hooks let you run custom scripts at specific points during the agent's execution to modify behavior, enforce policies, or add custom logging.", "钩子允许您在智能体执行的特定时间点运行自定义脚本，以修改行为、强制执行策略或添加自定义日志。"],
@@ -753,11 +917,21 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["Output:", "输出："],
         ["Execution Log", "执行日志"],
         ["Clear log", "清除日志"],
+        ["We detected a hooks.json file that could not be loaded. Fix the errors below to enable hooks.", "我们检测到一个无法加载的 hooks.json 文件。请修复下方错误以启用钩子。"],
 
         // ==================== 索引与文档 (Indexing & Docs) 页面 ====================
         ["Codebase", "代码库"],
         ["Codebase Indexing", "代码库索引"],
         ["Codebase indexing", "代码库索引"],
+        ["Worktrees", "工作树"],
+        ["Cleanup", "清理"],
+        ["Cursor periodically removes old worktrees to free disk space. Tune how aggressively cleanup runs.", "Cursor 会定期移除旧工作树以释放磁盘空间。可调整清理执行的激进程度。"],
+        ["Max worktrees", "最大工作树数量"],
+        ["Maximum number of Cursor-managed worktrees to retain across all workspaces. Older worktrees are removed first.", "在所有工作区中保留的由 Cursor 管理的工作树最大数量。较旧的工作树会优先被移除。"],
+        ["Max total size (GB)", "最大总大小（GB）"],
+        ["Maximum total size in GB across all Cursor-managed worktrees. Set to 0 to disable the size limit.", "所有由 Cursor 管理的工作树的最大总大小（GB）。设为 0 可禁用大小限制。"],
+        ["Cursor-managed worktrees", "Cursor 管理的工作树"],
+        ["No Cursor-managed worktrees on this machine.", "这台机器上没有由 Cursor 管理的工作树。"],
         ["Learn about codebase indexing", "了解代码库索引"],
         ["Codebase Index deleted", "代码库索引已删除"],
         ["Delete Codebase Index?", "删除代码库索引？"],
@@ -765,7 +939,13 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["Index New Folders", "索引新文件夹"],
         ["Index Repositories for Instant Grep", "索引仓库以实现即时搜索"],
         ["Automatically index repositories to speed up Grep searches. All data is stored locally.", "自动索引仓库以加速 Grep 搜索。所有数据都存储在本地。"],
+        ["Embed codebase for improved contextual understanding and knowledge", "嵌入代码库以提高上下文理解和知识"],
         ["Embed codebase for improved contextual understanding and knowledge.", "嵌入代码库以提高上下文理解和知识。"],
+        ["Embeddings and metadata are stored in the cloud, but all code is stored locally.", "嵌入向量和元数据存储在云端，但所有代码都存储在本地。"],
+        ["Embeddings and metadata are stored in the", "嵌入向量和元数据存储在"],
+        ["cloud", "云端"],
+        [", but all code is stored locally.", "，但所有代码都存储在本地。"],
+        ["Embeddings and metadata are stored in the cloud, but all code is stored locally", "嵌入向量和元数据存储在云端，但所有代码都存储在本地"],
         ["but all code is stored locally.", "但所有代码都存储在本地。"],
         ["Files to exclude from indexing in addition to .gitignore.", "除 .gitignore 外要从索引中排除的文件。"],
         ["View included files.", "查看包含的文件。"],
@@ -785,13 +965,41 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["Allow Agent to search the web for relevant information", "允许 Agent 搜索网络以获取相关信息"],
         ["Auto-Parse Links", "自动解析链接"],
         ["Automatically parse links when pasted into Quick Edit (Ctrl+K) input", "粘贴到快速编辑（Ctrl+K）输入时自动解析链接"],
+        ["Auto Jump to Next Diff", "自动跳到下一个差异"],
+        ["Automatically jump to the next diff when accepting changes with Ctrl+Y", "使用 Ctrl+Y 接受更改时自动跳到下一个差异"],
+        ["Auto Format After Agent Finishes", "Agent 完成后自动格式化"],
+        ["Automatically format changed files when Agent finishes", "当 Agent 完成时自动格式化已更改文件"],
+        ["Terminal Hints", "终端提示"],
+        ["Show a hint for Ctrl+K in the Terminal", "在终端中显示 Ctrl+K 提示"],
+        ["Preview Box for Terminal Ctrl+K", "终端 Ctrl+K 预览框"],
+        ["Use a preview box instead of directly streaming into the Shell", "使用预览框，而不是直接流式传输到 Shell 中"],
         ["Allow Agent to fetch content from URLs", "允许 Agent 从 URL 获取内容"],
         ["Crawl and index custom resources and developer docs", "爬取和索引自定义资源和开发者文档"],
         ["Add Doc", "添加文档"],
         ["Add documentation to use as context. You can also use @Add in Chat or while editing to add a doc.", "添加文档用作上下文。您还可以在聊天中或编辑时使用 @Add 来添加文档。"],
         ["No Docs Added", "暂无已添加的文档"],
         ["Indexing", "索引"],
-        ["Automatically index any new folders with fewer than 50,000 files", "自动索引文件数少于 50,000 的新文件夹"],
+        ["Automatically", "自动"],
+        ["Automatically index any new folders", "自动索引新增文件夹"],
+        ["Automatically index any new folders with fewer than 50,000 files", "自动索引文件数少于 50,000 的新增文件夹"],
+        ["index any new folders with fewer than 50,000 files", "索引文件数少于 50,000 的新增文件夹"],
+        ["index any new folders", "索引新增文件夹"],
+        ["with fewer than 50,000 files", "当文件数少于 50,000 个时"],
+        ["Embed codebase for improved contextual understanding and knowledge. Embeddings and metadata are stored in the cloud, but all code is stored locally.", "嵌入代码库以提高上下文理解和知识。嵌入向量和元数据存储在云端，但所有代码都存储在本地。"],
+
+        // ==================== 插件 (Plugins) 页面 ====================
+        ["Plugins", "插件"],
+        ["Extend Cursor with Skills, Rules, Agents, Hooks, and MCPs", "通过技能、规则、智能体、钩子和 MCP 扩展 Cursor"],
+        ["Search or Paste Link", "搜索或粘贴链接"],
+        ["Suggested", "推荐"],
+        ["MCPs", "MCP"],
+        ["No Plugins", "暂无插件"],
+        ["Browse the marketplace or import custom plugins to extend", "浏览市场或导入自定义插件来扩展"],
+        ["Cursor with Skills, Rules, Agents, Hooks, and MCPs.", "Cursor，并为其添加技能、规则、智能体、钩子和 MCP。"],
+        ["Cursor with Skills, Rules, Agents, Hooks, and MCPs", "Cursor，并为其添加技能、规则、智能体、钩子和 MCP"],
+        ["Browse the marketplace or import custom plugins to extend Cursor with Skills, Rules, Agents, Hooks, and MCPs", "浏览市场或导入自定义插件，通过技能、规则、智能体、钩子和 MCP 扩展 Cursor"],
+        ["Browse the marketplace or import custom plugins to extend Cursor with Skills, Rules, Agents, Hooks, and MCPs.", "浏览市场或导入自定义插件，通过技能、规则、智能体、钩子和 MCP 扩展 Cursor。"],
+        ["Add Plugin", "添加插件"],
 
         // ==================== 网络 (Network) 页面 ====================
         ["HTTP Compatibility Mode", "HTTP 兼容模式"],
@@ -838,12 +1046,19 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["Remove Model", "移除模型"],
         ["Remove model", "移除模型"],
         ["Test Model", "测试模型"],
+        ["DeepSeek V4 Pro", "DeepSeek V4 Pro"],
         ["Add or search model", "添加或搜索模型"],
         ["Enter model name", "输入模型名称"],
         ["Enter your OpenAI API Key", "输入您的 OpenAI API 密钥"],
         ["Enter your Anthropic API Key", "输入您的 Anthropic API 密钥"],
         ["Enter your Google AI Studio API Key", "输入您的 Google AI Studio API 密钥"],
         ["Enter your Azure OpenAI API Key", "输入您的 Azure OpenAI API 密钥"],
+        ["You can put in your OpenAI key to use OpenAI models at cost.", "您可以填写自己的 OpenAI key 来按成本价使用 OpenAI 模型。"],
+        ["You can put in your Anthropic key to use Claude at cost. When enabled, this key will be used for all models beginning with claude-.", "您可以填写自己的 Anthropic key 来按成本价使用 Claude。启用后，此 key 将用于所有以 claude- 开头的模型。"],
+        ["You can put in your Google AI Studio key to use Google models at-cost.", "您可以填写自己的 Google AI Studio key 来按成本价使用 Google 模型。"],
+        ["Configure Azure OpenAI to use OpenAI models through your Azure account.", "配置 Azure OpenAI，通过您的 Azure 账户使用 OpenAI 模型。"],
+        ["Configure AWS Bedrock to use Anthropic Claude models through your AWS account.", "配置 AWS Bedrock，通过您的 AWS 账户使用 Anthropic Claude 模型。"],
+        ["Cursor Enterprise teams can configure IAM roles to access Bedrock without any Access Keys.", "Cursor Enterprise 团队可配置 IAM 角色，无需任何 Access Keys 即可访问 Bedrock。"],
         ["Turn Off Anthropic Key", "关闭 Anthropic 密钥"],
         ["Turn Off Google Key", "关闭 Google 密钥"],
         ["Select Custom Chime Sound", "选择自定义提示音"],
@@ -852,6 +1067,95 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["Use a preview box instead of streaming responses directly into the shell", "使用预览框而不是将响应直接流式传输到 Shell 中"],
         ["Collapse Auto-Run Commands", "折叠自动运行命令"],
         ["Collapse auto-run command output by default in Terminal command previews", "在终端命令预览中默认折叠自动运行命令输出"],
+        ["Always respond in Chinese-simplified", "始终以简体中文回复"],
+        ["Open Web Links in Browser", "在浏览器中打开网页链接"],
+        ["Automatically open http and https links in the Browser Tab", "自动在浏览器标签页中打开 http 和 https 链接"],
+        ["Workbench › Cloud Changes: Auto Resume", "工作台 › 云端更改：自动恢复"],
+        ["Workbench › Cloud Changes: Continue Prompt", "工作台 › 云端更改：继续提示"],
+        ["Workbench › Experimental › Cloud Changes: Auto Store", "工作台 › 实验性 › 云端更改：自动存储"],
+        ["Workbench › Experimental › Cloud Changes › Partial Matches: Enabled", "工作台 › 实验性 › 云端更改 › 部分匹配：已启用"],
+        ["Workbench › Settings: Enable Natural Language Search", "工作台 › 设置：启用自然语言搜索"],
+
+        // ==================== 工作区设置 / 终端 (Workspace / Terminal) ====================
+        ["Terminal › Explorer Kind", "终端 › 资源管理器类型"],
+        ["When opening a file from the Explorer in a terminal, determines what kind of terminal will be launched", "当从资源管理器在终端中打开文件时，决定将启动哪种类型的终端"],
+        ["Terminal › Integrated: Accessible View Focus On Command Execution", "终端 › 集成：命令执行时聚焦可访问视图"],
+        ["On command execution, focus the accessible view of the terminal.", "执行命令时，将焦点放在终端的可访问视图上。"],
+        ["Terminal › Integrated: Accessible View Preserve Cursor Position", "终端 › 集成：可访问视图保留光标位置"],
+        ["Whether to preserve the cursor position when reopening the terminal's accessible view rather than setting it to the bottom of the buffer.", "重新打开终端的可访问视图时，是否保留光标位置，而不是将其设为缓冲区底部。"],
+        ["Terminal › Integrated: Allow Chords", "终端 › 集成：允许组合键"],
+        ["Whether to allow chord keybindings in the terminal. Note that when this is true and the chord is a terminal command, the command to skip shell is ignored. This is useful to disable chord keybindings that conflict with shell bindings such as ctrl+k.", "是否允许在终端中使用组合键绑定。请注意，当该值为 true 且该组合键是终端命令时，将忽略“命令跳过 Shell”。这对于禁用与 Shell 绑定冲突的组合键（例如 ctrl+k）很有用。"],
+        ["Terminal › Integrated: Allowed Link Schemes", "终端 › 集成：允许的链接方案"],
+        ["An array of strings containing URI schemes allowed to be activated from the terminal. By default, only a small subset of potentially safe schemes is allowed.", "包含允许从终端中激活的 URI 方案的字符串数组。默认情况下，仅允许一小部分可能安全的方案。"],
+        ["Terminal › Integrated: Allow Mnemonics", "终端 › 集成：允许助记键"],
+        ["Whether to allow mnemonics for menu items to run in the terminal, for example Alt+F opens the File menu. This will cause all alt keystrokes to skip the shell when true. This does nothing on macOS.", "是否允许菜单项助记键在终端中生效，例如 Alt+F 打开“文件”菜单。启用后，所有 Alt 按键都会跳过 Shell。此设置在 macOS 上不起作用。"],
+        ["Terminal › Integrated: Alt Click Moves Cursor", "终端 › 集成：Alt+单击移动光标"],
+        ["Whether holding a modifier key and clicking in the terminal will move the cursor position. The effective behavior is determined by the editor.multiCursorModifier setting value. This setting can be used to disable this behavior.", "在终端中按住修饰键并单击时，是否移动光标位置。实际行为由 editor.multiCursorModifier 的设置值决定。此设置可用于禁用该行为。"],
+        ["If enabled, when editor.multiCursorModifier is set to 'alt', alt/option+click will reposition the cursor under the mouse. The option is not available on macOS because alt is used to insert special characters in the terminal.", "如果启用，当 editor.multiCursorModifier 设置为 'alt'（默认值）时，alt/option+单击会将光标移动到鼠标下方。该选项在 macOS 上不可用，因为 alt 用于在终端中输入特殊字符。"],
+        ["Terminal › Integrated › Automation Profile: Linux", "终端 › 集成 › 自动化配置文件：Linux"],
+        ["The terminal profile to use on Linux for automation-related terminal usage like tasks and debug.", "在 Linux 上用于任务、调试等自动化相关终端场景的终端配置文件。"],
+        ["Terminal › Integrated: Command To Skip Shell", "终端 › 集成：跳过 Shell 的命令"],
+        ["Terminal › External: Linux Exec", "终端 › 外部：Linux 可执行程序"],
+        ["Terminal › External: Osx Exec", "终端 › 外部：macOS 可执行程序"],
+        ["Terminal › External: Windows Exec", "终端 › 外部：Windows 可执行程序"],
+        ["Customizes which terminal to run on Linux.", "自定义在 Linux 上运行的终端程序。"],
+        ["Customizes which terminal application to run on macOS.", "自定义在 macOS 上运行的终端应用程序。"],
+        ["Customizes which terminal to run on Windows.", "自定义在 Windows 上运行的终端程序。"],
+        ["Terminal › Integrated: Rescale Overlapping Glyphs", "终端 › 集成：重新缩放重叠字形"],
+        ["Whether to rescale glyphs that are scaled down to fit a single cell with overlapping glyphs from the next cell. This is primarily intended to handle ambiguous width characters such as U+2160 and box-drawing characters that can overlap. This will never rescale Emoji.", "是否重新缩放那些被压缩到单个单元格内、且与下一个单元格字形重叠的字形。此项主要用于处理 U+2160 等模糊宽度字符以及可能发生重叠的制表符号/框线字符。该选项不会重新缩放 Emoji。"],
+        ["Terminal › Integrated: Right Click Behavior", "终端 › 集成：右键点击行为"],
+        ["Controls how terminal responds to right click.", "控制终端如何响应右键点击操作。"],
+        ["Terminal › Integrated: Scrollback", "终端 › 集成：回滚缓冲区"],
+        ["Controls the maximum number of lines the terminal keeps in its buffer.", "控制终端在其缓冲区中保留的最大行数。"],
+        ["We pre-allocate memory based on this value in order to ensure a smooth experience. As such, as the value increases, so will the amount of memory.", "我们会根据此值预分配内存，以确保流畅体验。因此，随着该值增加，内存占用也会增加。"],
+        ["Terminal › Integrated: Send Keybindings To Shell", "终端 › 集成：将键绑定发送到 Shell"],
+        ["Dispatches most keybindings to the terminal instead of the workbench, overriding commands like terminal.focusNextPane. This can be useful for advanced shell usage.", "将大多数键绑定发送到终端而不是工作台，并覆盖诸如 terminal.focusNextPane 之类的命令。这对高级 Shell 使用场景会很有用。"],
+        ["Terminal › Integrated › Tabs: Enable Animation", "终端 › 集成 › 选项卡：启用动画"],
+        ["Controls whether terminal tabs show animations in states like running tasks.", "控制终端选项卡状态是否支持动画（例如正在进行的任务）。"],
+        ["Terminal › Integrated › Tabs: Enabled", "终端 › 集成 › 选项卡：已启用"],
+        ["Controls whether terminal tabs display as a list to the side of the terminal. When disabled, this will show a dropdown.", "控制终端选项卡是否以列表的形式显示在终端的一侧。如果禁用此功能，将改为显示下拉列表。"],
+        ["Terminal › Integrated › Tabs: Focus Mode", "终端 › 集成 › 选项卡：聚焦模式"],
+        ["Controls whether to focus a tab on hover, single click or double click.", "控制是在双击时将焦点放在某个选项卡上还是单击。"],
+        ["Terminal › Integrated › Tabs: Hide Condition", "终端 › 集成 › 选项卡：隐藏条件"],
+        ["Controls whether to hide the terminal tabs view under certain conditions.", "控制在特定条件下是否将隐藏终端选项卡视图。"],
+        ["Terminal › Integrated › Tabs: Location", "终端 › 集成 › 选项卡：位置"],
+        ["Controls the location of the terminal tabs, either to the left or right of the actual terminal.", "控制终端选项卡的位置，该位置位于实际终端的左侧或右侧。"],
+        ["Terminal › Integrated › Tabs: Separator", "终端 › 集成 › 选项卡：分隔符"],
+        ["The separator used for the terminal.integrated.tabs.title and terminal.integrated.tabs.description.", "terminal.integrated.tabs.title 和 terminal.integrated.tabs.description 使用的分隔符。"],
+        ["Terminal › Integrated › Tabs: Show Actions", "终端 › 集成 › 选项卡：显示操作"],
+        ["Controls whether to show the actions for the active terminal in the tab row.", "控制是否在“新建终端”按钮旁边显示“终端拆分”和“终止”按钮。"],
+        ["Terminal › Integrated › Tabs: Show Active Terminal", "终端 › 集成 › 选项卡：显示活动终端"],
+        ["Controls whether to show the active terminal when there is only a single terminal in the terminal tabs list.", "控制当终端标签列表中只有一个终端时，是否显示活动终端。"],
+        ["Terminal › Integrated › Tabs: Stop Width", "终端 › 集成 › 选项卡：制表位宽度"],
+        ["Terminal › Integrated: Text Blinking", "终端 › 集成：文本闪烁"],
+        ["Controls whether text blinking is enabled in the terminal.", "控制终端中的文本闪烁是否已启用。"],
+        ["Terminal › Integrated: Unicode Version", "终端 › 集成：Unicode 版本"],
+        ["Controls the version of Unicode to use when measuring the width of characters in the terminal. If you experience emoji or other wide characters either taking up too much or too little space, you may want to tweak this setting.", "控制在终端中计算字符宽度时要使用的 Unicode 版本。如果遇到未占用正确空格或退格量的表情符号或其他宽字符，或删除量太大或太小，则可能希望尝试调整此设置。"],
+        ["Terminal › Integrated: Use Wsl Profiles", "终端 › 集成：使用 WSL 配置文件"],
+        ["Controls whether to show WSL distros in the terminal dropdown.", "控制是否在终端下拉列表中显示 WSL 发行版"],
+        ["Terminal › Integrated: Windows Enable Conpty", "终端 › 集成：Windows 启用 ConPTY"],
+        ["Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 18309+). When this is false, Winpty will be used.", "是否使用 ConPTY 进行 Windows 终端进程通信（需要 Windows 10 内部版本号 18309+）。如果此设置为 false，将使用 Winpty。"],
+        ["Terminal › Integrated: Windows Use Conpty Dll", "终端 › 集成：Windows 使用 ConPTY DLL"],
+        ["Whether to use the VS Code provided experimental conpty.dll instead of the one bundled with Windows.", "是否使用 VS Code 附带的，而不是与 Windows 捆绑的实验性 conpty.dll。"],
+        ["Terminal › Integrated: Word Separators", "终端 › 集成：单词分隔符"],
+        ["A string containing all characters that should be considered word separators when doing word related navigations and operations. Since this is used for link detection, characters such as `.` that are used for link paths should not be considered word separators.", "一个包含所有字符的字符串，在双击选择单词和回退“word”键接检测时，会被视为单词分隔符。由于这用于链接检测，包括在检测链接时使用“.”之类的字符，将会忽略诸如 file:10.5 等链接的行和列部分。"],
+        ["Terminal › Source Control Repositories Kind", "终端 › 源代码管理仓库类型"],
+        ["When opening a repository from the Source Control Repositories view in a terminal, determines what kind of terminal will be launched", "当从“源代码管理仓库”视图在终端中打开仓库时，决定将启动哪种类型的终端"],
+        ["Terminal › Integrated › Shell Integration: Decorations", "终端 › 集成 › Shell 集成：装饰"],
+        ["Enable decorations for each command when shell integration is enabled.", "启用 shell 集成后，为每个命令显示装饰。"],
+        ["Terminal › Integrated › Shell Integration: Enabled", "终端 › 集成 › Shell 集成：已启用"],
+        ["Controls whether to automatically inject shell integration to support features like enhanced command tracking and current working directory detection.", "控制是否自动注入 shell 集成，以支持增强命令跟踪、当前工作目录检测等功能。"],
+        ["Shell integration works by injecting a script that makes VS Code aware of what is happening in the terminal.", "Shell 集成通过注入脚本来工作，使 VS Code 能够了解终端中正在发生的情况。"],
+        ["Supported shells:", "支持的 shell："],
+        ["Accessible View", "可访问视图"],
+        ["Allow Chords", "允许组合键"],
+        ["Allowed Link Schemes", "允许的链接方案"],
+        ["Allow Mnemonics", "允许助记键"],
+        ["Alt Click Moves Cursor", "Alt+单击移动光标"],
+        ["Automation Profile", "自动化配置文件"],
+        ["Explorer", "资源管理器"],
+        ["Integrated", "集成"],
+        ["Kind", "类型"],
 
         // ==================== 通用 UI 元素 ====================
         ["Save", "保存"],
@@ -866,6 +1170,7 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["Apply", "应用"],
         ["Close", "关闭"],
         ["Search", "搜索"],
+        ["Search models", "搜索模型"],
         ["Settings", "设置"],
         ["Preferences", "首选项"],
         ["Configuration", "配置"],
@@ -935,8 +1240,132 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["No description", "无描述"],
         ["Get Started", "开始使用"],
         ["Create with Agent", "使用 Agent 创建"],
+        ["Editor Window", "编辑器窗口"],
+        ["Home", "主页"],
+        ["Local", "本地"],
+        ["No Local Changes", "没有本地更改"],
+        ["Uncommitted", "未提交"],
+        ["Unstaged", "未暂存"],
+        ["Staged", "已暂存"],
+        ["All commits", "所有提交"],
+        ["Use a Git repository to track changes", "使用 Git 仓库来跟踪更改"],
+        ["Initialize Repository", "初始化仓库"],
+        ["Connect GitHub", "连接 GitHub"],
+        ["Connect GitHub to create, update, and merge pull requests directly in Cursor.", "连接 GitHub，以便直接在 Cursor 中创建、更新和合并拉取请求。"],
+        ["Unified", "统一视图"],
+        ["Split", "拆分视图"],
+        ["Ignore Whitespace", "忽略空白字符"],
+        ["Find in Diff", "在差异中查找"],
+        ["Refresh Changes", "刷新更改"],
         ["User", "用户"],
         ["Agent", "智能体"],
+        ["Changes", "更改"],
+        ["Files", "文件"],
+        ["Terminal", "终端"],
+        ["Zoom In", "放大"],
+        ["Zoom Out", "缩小"],
+        ["Reset Zoom", "重置缩放"],
+        ["Mark All as Read", "全部标记为已读"],
+        ["Mark All Read", "全部标记为已读"],
+        ["Mark as Unread", "标记为未读"],
+        ["Archive All", "全部归档"],
+        ["Archive", "归档"],
+        ["Remove from Sidebar", "从侧边栏移除"],
+        ["Group by", "分组方式"],
+        ["Workspace", "工作区"],
+        ["Repository", "仓库"],
+        ["Updated", "更新时间"],
+        ["Environment", "环境"],
+        ["Collapse All", "全部折叠"],
+        ["Pin", "固定"],
+        ["Rename", "重命名"],
+        ["Fork Chat", "分叉对话"],
+        ["Unread", "未读"],
+        ["Archived", "已归档"],
+        ["Unread, Archived", "未读、已归档"],
+        ["Only Unread", "仅未读"],
+        ["Only Archived", "仅已归档"],
+        ["Include Archived", "包含已归档"],
+        ["Show Machine Label", "显示机器标签"],
+        ["Show Icon", "显示图标"],
+        ["Draft", "草稿"],
+        ["Needs Attention", "需要关注"],
+        ["Merged", "已合并"],
+        ["Closed", "已关闭"],
+        ["No PR", "无 PR"],
+        ["Cloud", "云端"],
+        ["This PC", "此电脑"],
+        ["Desktop", "桌面端"],
+        ["Web", "网页端"],
+        ["SCM", "源代码管理"],
+        ["CLI", "命令行"],
+        ["Setup", "设置向导"],
+        ["SDK", "开发工具包"],
+        ["Automations", "自动化"],
+        ["Source", "来源"],
+        ["Metadata", "元数据"],
+        ["Search Tool", "搜索工具"],
+        ["Fetch Tool", "抓取工具"],
+        ["Web Search Tool", "网页搜索工具"],
+        ["Web Fetch Tool", "网页抓取工具"],
+        ["Cursor Auth Debug", "Cursor 认证调试"],
+        ["Cursor Agent Exec", "Cursor 智能体执行"],
+        ["Cursor Agent Review", "Cursor 智能体审查"],
+        ["Cursor Agent Worker", "Cursor 智能体工作器"],
+        ["Cursor Always Local", "Cursor 始终本地"],
+        ["Cursor Git Graph", "Cursor Git 图谱"],
+        ["Cursor Grep Service", "Cursor Grep 服务"],
+        ["Cursor IDE Browser Automation", "Cursor IDE 浏览器自动化"],
+        ["Cursor Indexing & Retrieval", "Cursor 索引与检索"],
+        ["Cursor Plugins", "Cursor 插件"],
+        ["Cursor Resolver Helper", "Cursor 解析助手"],
+        ["Cursor Socket", "Cursor Socket"],
+        ["MCP Logs", "MCP 日志"],
+        ["MCP OAuth", "MCP OAuth"],
+        ["Mcp FileSystem Writer", "MCP 文件系统写入器"],
+        ["Filesync", "文件同步"],
+        ["Bugbot Autofix", "Bugbot 自动修复"],
+        ["Frontend QA", "前端质检"],
+        ["Run Cursor anywhere...", "在任意位置运行 Cursor..."],
+        ["Recents", "最近使用"],
+        ["Set Up Workspace", "设置工作区"],
+        ["Open Project", "打开项目"],
+        ["Clone Repository", "克隆仓库"],
+        ["Connect via SSH", "通过 SSH 连接"],
+        ["Connect SSH", "连接 SSH"],
+        ["Connect WSL", "连接 WSL"],
+        ["Try a new window for running parallel agents", "打开新窗口来并行运行多个智能体"],
+        ["Split Right", "向右拆分"],
+        ["Split Down", "向下拆分"],
+        ["New Worktree", "新建工作树"],
+        ["Plan New Idea", "规划新想法"],
+        ["Plan New Idea ⇧ Tab", "规划新想法 ⇧ Tab"],
+        ["MAX Mode", "MAX 模式"],
+        ["Efficiency", "效率"],
+        ["Premium Intelligence", "高级智能"],
+        ["Add Models", "添加模型"],
+        ["Fast", "快速"],
+        ["Conversation Density", "对话密度"],
+        ["Choose how much detail Agent tool calls show in the conversation", "选择在对话中显示多少智能体工具调用细节"],
+        ["Compact", "紧凑"],
+        ["Balanced", "均衡"],
+        ["Detailed", "详细"],
+        ["Status Bar", "状态栏"],
+        ["Show status bar at the bottom", "在底部显示状态栏"],
+        ["Review Location", "审查位置"],
+        ["Panel", "面板"],
+        ["Sidebar", "侧边栏"],
+        ["Editor", "编辑器"],
+        ["Editor auto-hides when empty", "编辑器为空时自动隐藏"],
+        ["When all editors are closed, hide the editor area and maximize chat", "当所有编辑器关闭时，隐藏编辑器区域并最大化聊天"],
+        ["Show chat in editor tabs", "在编辑器标签页中显示对话"],
+        ["Show chat in editor tabs in the chat area instead of the old stacked view", "在聊天区域中以编辑器标签页显示对话，而不是旧的堆叠视图"],
+        ["System Notifications", "系统通知"],
+        ["Show system notifications when Agent completes or needs attention", "当智能体完成或需要关注时显示系统通知"],
+        ["System Tray Icon", "系统托盘图标"],
+        ["Show Cursor in the system tray", "在系统托盘中显示 Cursor"],
+        ["Completion Sound", "完成提示音"],
+        ["Play a sound when Agent completes or needs attention", "当智能体完成或需要关注时播放提示音"],
         ["10", "10"],
         ["All Files", "所有文件"],
         ["Audio Files", "音频文件"],
@@ -944,11 +1373,37 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["Island", "浮动岛"],
         ["Start Free Trial", "开始免费试用"],
         ["Start free trial", "开始免费试用"],
+        ["Marketplace", "市场"],
+        ["Market", "市场"],
+        ["Featured", "精选"],
+        ["Infrastructure", "基础设施"],
+        ["Data & Analytics", "数据与分析"],
+        ["Productivity", "生产力"],
+        ["Payments", "支付"],
+        ["Agent Orchestration", "智能体编排"],
+        ["Canvas", "画布"],
+        ["All Plugins", "全部插件"],
+        ["Documentation", "文档"],
+        ["Get", "获取"],
+        ["Add to Cursor", "添加到 Cursor"],
+        ["Skills", "技能"],
+        ["Search skills, rules, subagents, MCPs, and hooks", "搜索技能、规则、子智能体、MCP 和钩子"],
 
         // ==================== 菜单栏 (Menu Bar) ====================
         ["File", "文件"],
         ["New Agent", "新建智能体"],
         ["Open Folder", "打开文件夹"],
+        ["New Text File", "新建文本文件"],
+        ["New Window", "新建窗口"],
+        ["New Agents Window", "新建智能体窗口"],
+        ["Open File...", "打开文件..."],
+        ["Open Folder...", "打开文件夹..."],
+        ["Open Workspace from File...", "从文件打开工作区..."],
+        ["Open Recent", "打开最近的文件"],
+        ["Add Folder to Workspace...", "将文件夹添加到工作区..."],
+        ["Save Workspace As...", "将工作区另存为..."],
+        ["Duplicate Workspace", "复制工作区"],
+        ["Close Window", "关闭窗口"],
         ["New Terminal", "新建终端"],
         ["New Browser", "新建浏览器"],
         ["Open Editor Window", "打开编辑器窗口"],
@@ -968,6 +1423,8 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
         // ==================== Command Palette ====================
         ["Search files, actions, agents...", "搜索文件、操作、智能体..."],
+        ["Plan, Build, / for commands, @ for context", "计划、构建，输入 / 调用命令，输入 @ 添加上下文"],
+        ["Help me create this skill for Cursor!", "帮我为 Cursor 创建这个技能！"],
         ["Use Voice", "使用语音"],
         ["Pin / Unpin Agent", "固定/取消固定智能体"],
         ["Go Back", "返回"],
@@ -997,6 +1454,17 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         [/^(\\d+) tools?$/i, "$1 个工具"],
         [/^(\\d+) resources?$/i, "$1 个资源"],
         [/^(\\d+) prompts?$/i, "$1 个提示词"],
+        [/^Skills? (\\d+)$/i, "技能 $1"],
+        [/^(\\d+) skills?$/i, "$1 个技能"],
+        [/^No Local Changes$/i, "没有本地更改"],
+        [/^(\\d+) Local Changes$/i, "$1 个本地更改"],
+        [/^(\\d+) Changes$/i, "$1 个更改"],
+        [/^Composer (.+) Fast$/i, "Composer $1 快速"],
+        [/^Editor Window\\s*↗?$/i, "编辑器窗口 ↗"],
+        [/^Plan New Idea\\s*⇧?\\s*Tab$/i, "规划新想法 ⇧ Tab"],
+        [/^Resets on (.+)$/i, "将于 $1 重置"],
+        [/^(.+)% Auto and (.+)% API used$/i, "$1% Auto 已用，$2% API 已用"],
+        [/^Unlock Agent (.+)x usage and more$/i, "解锁 Agent $1 倍用量及更多"],
         [/^Updated (.+) ago$/i, "$1前更新"],
         [/^(\\d+) seconds? ago$/i, "$1 秒前"],
         [/^(\\d+) minutes? ago$/i, "$1 分钟前"],
@@ -1005,13 +1473,16 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         [/^Auto-Run Mode Disabled by Team Admin$/i, "自动运行模式已被团队管理员禁用"],
         [/^Auto-Run Mode Controlled by Team Admin$/i, "自动运行模式由团队管理员控制"],
         [/^Auto-Run Mode Controlled by Team Admin \\(Sandbox Enabled\\)$/i, "自动运行模式由团队管理员控制（沙盒已启用）"],
+        [/^Enabled by Run Everything Auto-Run Mode:\s*Agent bypasses approval prompts for tools including Web Search\.?$/i, "由“全部运行”自动运行模式启用：智能体会跳过包括网页搜索在内的工具审批提示"],
+        [/^Jump back to the Agents Window to keep working across repos\.?$/i, "返回智能体窗口以继续跨仓库工作。"],
         [/^Custom cron: (.+)$/i, "自定义 Cron：$1"],
         [/^(.+) at (.+)$/i, "$1 于 $2"],
         [/^Automatically index any new folders with fewer than (\\d+) files$/i, "自动索引文件数少于 $1 的新文件夹"],
+        [/^Embed codebase for improved contextual understanding and knowledge\.\s*Embeddings and metadata are stored in the cloud, but all code is stored locally\.?$/i, "嵌入代码库以提高上下文理解和知识。嵌入向量和元数据存储在云端，但所有代码都存储在本地。"],
+        [/^Use with caution\.\s*Skip symlinks during\s*\.?cursorignore file discovery\.\s*Only enable if your repository has many\s*symlinks and all\s*\.?cursorignore files are reachable without them\.\s*Changing this setting will require a restart of\s*Cursor\.?$/i, "谨慎使用。在 .cursorignore 文件发现期间跳过符号链接。仅在您的仓库有很多符号链接且所有 .cursorignore 文件无需它们即可访问时启用。更改此设置需要重启 Cursor。"],
         [/^(\\d+) hooks?$/i, "$1 个钩子"],
         [/^(\\d+) automations?$/i, "$1 个自动化"],
         [/^(\\d+) rules?$/i, "$1 条规则"],
-        [/^(\\d+) skills?$/i, "$1 个技能"],
         [/^(\\d+) commands?$/i, "$1 个命令"],
         [/^(\\d+) subagents?$/i, "$1 个子智能体"]
     ];
@@ -1020,8 +1491,93 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
     // SECTION 2: 翻译引擎
     // ================================================================
 
-    var TiaoGuo_XuanZeQi = '.monaco-editor, .overflow-guard, .view-lines, .editor-scrollable, .inputarea, .rename-input';
+    var TiaoGuo_XuanZeQi = '.monaco-editor, .overflow-guard, .view-lines, .editor-scrollable, .inputarea, .rename-input, .explorer-viewlet, [id="workbench.view.explorer"]';
     var TiaoGuo_BiaoQian = new Set(['TEXTAREA', 'INPUT', 'SCRIPT', 'STYLE', 'CODE', 'PRE', 'NOSCRIPT']);
+
+    function GuiYiHua_WenBen(text) {
+        return text.replace(/\s+/g, ' ').trim();
+    }
+
+    function ChaZhao_FanYi(text) {
+        if (!text) return null;
+
+        var trimmed = text.trim();
+        var normalized = GuiYiHua_WenBen(text);
+
+        if (FanYi_CiDian.has(trimmed)) return FanYi_CiDian.get(trimmed);
+        if (normalized !== trimmed && FanYi_CiDian.has(normalized)) return FanYi_CiDian.get(normalized);
+
+        for (var i = 0; i < MoShi_FanYi.length; i++) {
+            var pair = MoShi_FanYi[i];
+            if (pair[0].test(trimmed)) return trimmed.replace(pair[0], pair[1]);
+            if (normalized !== trimmed && pair[0].test(normalized)) return normalized.replace(pair[0], pair[1]);
+        }
+
+        return null;
+    }
+
+    function TiHuan_BuFen_WenBen(text) {
+        if (!text) return null;
+
+        var result = text;
+        var changed = false;
+        var normalized = GuiYiHua_WenBen(text);
+        var DingXiang_SuiPian = [
+        ['Embed codebase for improved contextual understanding and knowledge.', '嵌入代码库以提升上下文理解与知识检索。'],
+        ['Embed codebase for improved contextual understanding and knowledge', '嵌入代码库以提升上下文理解与知识检索'],
+        ['Automatically index any new folders with fewer than 50,000 files', '自动索引文件数少于 50,000 的新增文件夹'],
+        ['Embeddings and metadata are stored in the ', '嵌入向量和元数据存储在'],
+            ['Embeddings and metadata are stored in ', '嵌入向量和元数据存储在'],
+            [', but all code is stored locally.', '，但所有代码都存储在本地。'],
+            ['but all code is stored locally.', '但所有代码都存储在本地。'],
+            ['Auto Resume', '自动恢复'],
+            ['Continue Prompt', '继续提示'],
+            ['Auto Store', '自动存储'],
+            ['Partial Matches', '部分匹配'],
+            ['Natural Language Search', '自然语言搜索'],
+            ['Natural Language 搜索', '自然语言搜索'],
+            ['Automation Profile', '自动化配置文件'],
+            ['Focus on Command Execution', '命令执行时聚焦'],
+            ['Preserve Cursor Position', '保留光标位置']
+        ];
+
+        if (/^[a-z][\w-]*(?:\.[A-Za-z][\w-]*){1,}$/i.test(text)) {
+            return null;
+        }
+
+        for (var i = 0; i < DingXiang_SuiPian.length; i++) {
+            var pair = DingXiang_SuiPian[i];
+            var neo = result.split(pair[0]).join(pair[1]);
+            if (neo !== result) { result = neo; changed = true; }
+        }
+
+        for (var i = 0; i < MoShi_FanYi.length; i++) {
+            var pair = MoShi_FanYi[i];
+            if (pair[0].test(result)) {
+                result = result.replace(pair[0], pair[1]);
+                changed = true;
+            }
+        }
+
+        if (changed) return result;
+
+        result = normalized;
+        for (var i = 0; i < DingXiang_SuiPian.length; i++) {
+            var pair = DingXiang_SuiPian[i];
+            var neo = result.split(pair[0]).join(pair[1]);
+            if (neo !== result) { result = neo; changed = true; }
+        }
+
+        for (var i = 0; i < MoShi_FanYi.length; i++) {
+            var pair = MoShi_FanYi[i];
+            if (pair[0].test(result)) {
+                result = result.replace(pair[0], pair[1]);
+                changed = true;
+            }
+        }
+
+        return changed ? result : null;
+    }
 
     function FanYi_WenBen_JieDian(node) {
         var text = node.textContent;
@@ -1029,23 +1585,17 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         var trimmed = text.trim();
         if (!trimmed || trimmed.length > 500) return;
         if (/^[\\d\\s.,;:!?@#$%^&*()\\-+=<>\\/\\\\|~`'"[\\]{}]+$/.test(trimmed)) return;
-        if (/[\\u4e00-\\u9fff]/.test(trimmed) && (trimmed.match(/[\\u4e00-\\u9fff]/g) || []).length > trimmed.length * 0.3) return;
 
-        if (FanYi_CiDian.has(trimmed)) {
+        var result = ChaZhao_FanYi(text);
+        if (result) {
             var prefix = text.substring(0, text.indexOf(trimmed));
             var suffix = text.substring(text.indexOf(trimmed) + trimmed.length);
-            node.textContent = prefix + FanYi_CiDian.get(trimmed) + suffix;
+            node.textContent = prefix + result + suffix;
             return;
         }
 
-        for (var i = 0; i < MoShi_FanYi.length; i++) {
-            var pair = MoShi_FanYi[i];
-            if (pair[0].test(trimmed)) {
-                var result = trimmed.replace(pair[0], pair[1]);
-                node.textContent = text.replace(trimmed, result);
-                return;
-            }
-        }
+        var partial = TiHuan_BuFen_WenBen(text);
+        if (partial) node.textContent = partial;
     }
 
     function FanYi_ShuXing(el) {
@@ -1053,9 +1603,12 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         for (var i = 0; i < attrs.length; i++) {
             var val = el.getAttribute(attrs[i]);
             if (val) {
-                var trimmed = val.trim();
-                if (FanYi_CiDian.has(trimmed)) {
-                    el.setAttribute(attrs[i], FanYi_CiDian.get(trimmed));
+                var result = ChaZhao_FanYi(val);
+                if (result) {
+                    el.setAttribute(attrs[i], result);
+                } else {
+                    var partial = TiHuan_BuFen_WenBen(val);
+                    if (partial) el.setAttribute(attrs[i], partial);
                 }
             }
         }
@@ -1089,6 +1642,9 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
     var DaiChuLi_JieDian = [];
     var YiDiaoDu = false;
+    var ZhengZaiPiLiangFanYi = false;
+    var QuanJuXiuZheng_YiPaiDui = false;
+    var ShangCiQuanJuXiuZheng = 0;
 
     function TianJia_DaiChuLi(node) {
         DaiChuLi_JieDian.push(node);
@@ -1098,17 +1654,43 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         }
     }
 
+    function PaiDui_QuanJuXiuZheng() {
+        if (QuanJuXiuZheng_YiPaiDui) return;
+        QuanJuXiuZheng_YiPaiDui = true;
+        var now = Date.now();
+        var delay = now - ShangCiQuanJuXiuZheng < 1200 ? 1200 : 450;
+        setTimeout(function() {
+            ShangCiQuanJuXiuZheng = Date.now();
+            QuanJuXiuZheng_YiPaiDui = false;
+            ZhengZaiPiLiangFanYi = true;
+            try { XiuZheng_SuoYin_ShuoMing(); } catch (e) {}
+            try { XiuZheng_DaiMaKu_ShuoMing(); } catch (e) {}
+            try { XiuZheng_MoXing_Ye(); } catch (e) {}
+            try { XiuZheng_SheZhi_SuiPian(); } catch (e) {}
+            try { XiuZheng_ShiChang_FanYi(); } catch (e) {}
+            try { GengXin_ShiChang_QieHuan_AnNiu(); } catch (e) {}
+            try { ChaRu_YongLiang_XianShi(); } catch (e) {}
+            ZhengZaiPiLiangFanYi = false;
+        }, 300);
+    }
+
     function ZhiXing_PiLiang_FanYi() {
         var nodes = DaiChuLi_JieDian;
         DaiChuLi_JieDian = [];
         YiDiaoDu = false;
-        for (var i = 0; i < nodes.length; i++) {
-            try { FanYi_ZiShu(nodes[i]); } catch (e) {}
+        ZhengZaiPiLiangFanYi = true;
+        try {
+            for (var i = 0; i < nodes.length; i++) {
+                try { FanYi_ZiShu(nodes[i]); } catch (e) {}
+            }
+        } finally {
+            ZhengZaiPiLiangFanYi = false;
         }
-        try { ChaRu_YongLiang_XianShi(); } catch (e) {}
+        PaiDui_QuanJuXiuZheng();
     }
 
     function GuanCha_HuiDiao(mutations) {
+        if (ZhengZaiPiLiangFanYi) return;
         for (var i = 0; i < mutations.length; i++) {
             var m = mutations[i];
             if (m.type === 'childList') {
@@ -1119,12 +1701,624 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
                         TianJia_DaiChuLi(node);
                     }
                 }
-            } else if (m.type === 'characterData') {
-                if (m.target.nodeType === Node.TEXT_NODE) {
-                    TianJia_DaiChuLi(m.target);
+            }
+        }
+    }
+
+    function KeYi_AnQuan_GaiXie_WenBen(el, text, needles) {
+        if (!el || !text) return false;
+        if (text.length > 400) return false;
+        try {
+            if (el.querySelector('input, textarea, select, button, [role="button"], [role="switch"], [contenteditable="true"]')) return false;
+        } catch (e) {}
+        var parent = el.parentElement;
+        if (parent) {
+            var parentText = GuiYiHua_WenBen(parent.textContent || '');
+            if (parentText && parentText !== text) {
+                var parentHasAll = true;
+                for (var i = 0; i < needles.length; i++) {
+                    if (parentText.indexOf(needles[i]) === -1) {
+                        parentHasAll = false;
+                        break;
+                    }
+                }
+                if (parentHasAll) return false;
+            }
+        }
+        el.textContent = text;
+        return true;
+    }
+
+    var QuanJuWenBen_HuanCun = { time: 0, text: '' };
+    function HuoQu_QuanJu_WenBen() {
+        var now = Date.now();
+        if (now - QuanJuWenBen_HuanCun.time < 600) return QuanJuWenBen_HuanCun.text;
+        var text = '';
+        try { text = document.body ? GuiYiHua_WenBen(document.body.textContent || '') : ''; } catch (e) {}
+        QuanJuWenBen_HuanCun.time = now;
+        QuanJuWenBen_HuanCun.text = text;
+        return text;
+    }
+
+    function QuanJu_BaoHan_GuanJianCi(words) {
+        var text = HuoQu_QuanJu_WenBen();
+        if (!text) return false;
+        for (var i = 0; i < words.length; i++) {
+            if (text.indexOf(words[i]) !== -1) return true;
+        }
+        return false;
+    }
+
+    function TiHuan_WenBenJieDian_SuiPian(root, fragments) {
+        if (!root || !fragments || !fragments.length) return false;
+        var changed = false;
+        var walker;
+        try {
+            walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+        } catch (e) {
+            return false;
+        }
+
+        var node;
+        while ((node = walker.nextNode())) {
+            if (Shi_BianJiQi_QuYu(node)) continue;
+            var neo = node.textContent || '';
+            for (var i = 0; i < fragments.length; i++) {
+                neo = neo.split(fragments[i][0]).join(fragments[i][1]);
+            }
+            if (neo !== node.textContent) {
+                node.textContent = neo;
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    function XiuZheng_DaiMaKu_ShuoMing() {
+        if (!QuanJu_BaoHan_GuanJianCi(['Embed codebase', 'Embeddings and metadata', '代码库索引', '索引新文件夹'])) return;
+        var fragments = [
+            ['Embed codebase for improved contextual understanding and knowledge.', '嵌入代码库以提升上下文理解与知识检索。'],
+            ['Embed codebase for improved contextual understanding and knowledge', '嵌入代码库以提升上下文理解与知识检索'],
+            ['Embeddings and metadata are stored in the ', '嵌入向量和元数据存储在'],
+            ['Embeddings and metadata are stored in ', '嵌入向量和元数据存储在'],
+            [', but all code is stored locally.', '，但所有代码都存储在本地。'],
+            ['but all code is stored locally.', '但所有代码都存储在本地。']
+        ];
+
+        var all = document.querySelectorAll('div, span, p, label');
+        for (var i = 0; i < all.length; i++) {
+            var el = all[i];
+            var text = GuiYiHua_WenBen(el.textContent || '');
+            if (!text) continue;
+
+            if (
+                text.indexOf('Embed codebase for improved contextual understanding and knowledge') !== -1 ||
+                text.indexOf('Embeddings and metadata are stored in') !== -1 ||
+                (text.indexOf('嵌入代码库') !== -1 && text.indexOf('Embeddings and metadata') !== -1)
+            ) {
+                TiHuan_WenBenJieDian_SuiPian(el, fragments);
+            }
+        }
+    }
+
+    function XiuZheng_SuoYin_ShuoMing() {
+        if (!QuanJu_BaoHan_GuanJianCi(['50,000 files', 'index any new folders', '索引新文件夹'])) return;
+        var all = document.querySelectorAll('div, span, p, label');
+        for (var i = 0; i < all.length; i++) {
+            var el = all[i];
+            var text = GuiYiHua_WenBen(el.textContent || '');
+            if (!text) continue;
+
+            if (
+                text.indexOf('with fewer than 50,000 files') !== -1 ||
+                text.indexOf('index any new folders') !== -1 ||
+                text.indexOf('Automatically index any new folders') !== -1 ||
+                text.indexOf('自动matically') !== -1
+            ) {
+                KeYi_AnQuan_GaiXie_WenBen(el, '自动索引文件数少于 50,000 的新增文件夹', ['index any new folders', '50,000']);
+            }
+        }
+    }
+
+    function XiuZheng_MoXing_Ye() {
+        if (!QuanJu_BaoHan_GuanJianCi(['OpenAI key', 'Anthropic key', 'Google AI Studio key', 'Azure OpenAI', 'AWS Bedrock', 'DeepSeek'])) return;
+        var all = document.querySelectorAll('div, span, p, label');
+        for (var i = 0; i < all.length; i++) {
+            var el = all[i];
+            var text = GuiYiHua_WenBen(el.textContent || '');
+            if (!text) continue;
+
+            if (text.indexOf('深度Seek V4 Pro') !== -1) {
+                el.textContent = el.textContent.replace(/深度Seek V4 Pro/g, 'DeepSeek V4 Pro');
+                continue;
+            }
+
+            if (text.indexOf('OpenAI key') !== -1 && text.indexOf('OpenAI models') !== -1) {
+                KeYi_AnQuan_GaiXie_WenBen(el, '您可以填写自己的 OpenAI key 来按成本价使用 OpenAI 模型。', ['OpenAI key', 'OpenAI models']);
+                continue;
+            }
+            if (text.indexOf('Anthropic key') !== -1 && text.indexOf('beginning with') !== -1) {
+                KeYi_AnQuan_GaiXie_WenBen(el, '您可以填写自己的 Anthropic key 来按成本价使用 Claude。启用后，此 key 将用于所有以 claude- 开头的模型。', ['Anthropic key', 'beginning with']);
+                continue;
+            }
+            if (text.indexOf('Google AI Studio key') !== -1 && text.indexOf('Google models') !== -1) {
+                KeYi_AnQuan_GaiXie_WenBen(el, '您可以填写自己的 Google AI Studio key 来按成本价使用 Google 模型。', ['Google AI Studio key', 'Google models']);
+                continue;
+            }
+            if (text.indexOf('Configure Azure OpenAI') !== -1 && text.indexOf('Azure account') !== -1) {
+                KeYi_AnQuan_GaiXie_WenBen(el, '配置 Azure OpenAI，通过您的 Azure 账户使用 OpenAI 模型。', ['Configure Azure OpenAI', 'Azure account']);
+                continue;
+            }
+            if (text.indexOf('Configure AWS Bedrock') !== -1 && text.indexOf('AWS account') !== -1) {
+                KeYi_AnQuan_GaiXie_WenBen(el, '配置 AWS Bedrock，通过您的 AWS 账户使用 Anthropic Claude 模型。', ['Configure AWS Bedrock', 'AWS account']);
+                continue;
+            }
+            if (text.indexOf('Cursor Enterprise teams') !== -1 && text.indexOf('Access Keys') !== -1) {
+                KeYi_AnQuan_GaiXie_WenBen(el, 'Cursor Enterprise 团队可配置 IAM 角色，无需任何 Access Keys 即可访问 Bedrock。', ['Cursor Enterprise teams', 'Access Keys']);
+                continue;
+            }
+        }
+    }
+
+    function XiuZheng_SheZhi_SuiPian() {
+        if (!QuanJu_BaoHan_GuanJianCi(['Automation Profile', 'Natural Language Search', 'Auto Resume', 'Partial Matches', 'Continue Prompt', '自动mation'])) return;
+        var all = document.querySelectorAll('div, span, p, label');
+        for (var i = 0; i < all.length; i++) {
+            var el = all[i];
+            var text = GuiYiHua_WenBen(el.textContent || '');
+            if (!text) continue;
+
+            if (/^[a-z][\w-]*(?:\.[A-Za-z][\w-]*){1,}$/i.test(text)) {
+                continue;
+            }
+
+            if (text.indexOf('自动mation Profile') !== -1) {
+                el.textContent = el.textContent.replace(/自动mation Profile/g, '自动化配置文件');
+            }
+            if (text.indexOf('Focus 开 Command Execution') !== -1) {
+                el.textContent = el.textContent.replace(/Focus 开 Command Execution/g, '命令执行时聚焦');
+            }
+            if (text.indexOf('Preserve Cursor Position') !== -1) {
+                el.textContent = el.textContent.replace(/Preserve Cursor Position/g, '保留光标位置');
+            }
+            if (text.indexOf('Natural Language 搜索') !== -1) {
+                el.textContent = el.textContent.replace(/Natural Language 搜索/g, '自然语言搜索');
+            }
+            if (text.indexOf('Auto Resume') !== -1) {
+                el.textContent = el.textContent.replace(/Auto Resume/g, '自动恢复');
+            }
+            if (text.indexOf('Auto Store') !== -1) {
+                el.textContent = el.textContent.replace(/Auto Store/g, '自动存储');
+            }
+            if (text.indexOf('Partial Matches') !== -1) {
+                el.textContent = el.textContent.replace(/Partial Matches/g, '部分匹配');
+            }
+            if (text.indexOf('Continue Prompt') !== -1) {
+                el.textContent = el.textContent.replace(/Continue Prompt/g, '继续提示');
+            }
+        }
+    }
+
+    var ShiChang_FanYi_Jian = 'cursor_hanhua_market_translate';
+    var ShiChang_FanYi_Kai = true;
+    try { ShiChang_FanYi_Kai = localStorage.getItem(ShiChang_FanYi_Jian) !== '0'; } catch (e) {}
+    var ShiChang_ZaiXianFanYi_Kai = false;
+    try { ShiChang_ZaiXianFanYi_Kai = localStorage.getItem('cursor_hanhua_market_online_translate') === '1'; } catch (e) {}
+    var ShiChang_Ye_HuanCun = { time: 0, value: false };
+    var ShiChang_ZaiXianFanYi_BenLun = 0;
+
+    var ShiChang_ChaJian_MingCheng = {
+        'Datadog': '监控观测',
+        'Slack': '团队协作',
+        'Figma': '设计协作',
+        'Linear': '项目管理',
+        'Twilio': '通信服务',
+        'Vantage': '云成本管理',
+        'Azure': '微软云',
+        'Temporal': '工作流编排',
+        'typescript-lsp': 'TypeScript 语言服务',
+        'terraform': 'Terraform 基础设施',
+        'telegram': 'Telegram 通知',
+        'swift-lsp': 'Swift 语言服务',
+        'skill-creator': '技能创建器',
+        'session-report': '会话报告',
+        'serena': '语义代码分析',
+        'security-guidance': '安全指导',
+        'rust-analyzer-lsp': 'Rust 语言服务',
+        'ruby-lsp': 'Ruby 语言服务',
+        'ralph-loop': '自循环实验',
+        'pyright-lsp': 'Python 语言服务',
+        'pr-review-toolkit': 'PR 评审工具包',
+        'plugin-dev': '插件开发工具包',
+        'playwright': '浏览器自动化',
+        'playground': '交互式演示',
+        'php-lsp': 'PHP 语言服务',
+        'mcp-server-dev': 'MCP 服务开发'
+    };
+
+    var ShiChang_JiNeng_MingCheng = {
+        'ddconfig': '配置 Datadog',
+        'ddsetup': '初始化 Datadog',
+        'ddtoolsets': '管理 Datadog 工具集',
+        'session-report': '生成会话报告',
+        'skill-creator': '创建技能',
+        'plugin-dev': '插件开发',
+        'security-guidance': '安全指导',
+        'frontend-qa': '前端质检'
+    };
+
+    var ShiChang_MingCheng_CiGen = {
+        'typescript': 'TypeScript',
+        'javascript': 'JavaScript',
+        'swift': 'Swift',
+        'rust': 'Rust',
+        'ruby': 'Ruby',
+        'php': 'PHP',
+        'python': 'Python',
+        'pyright': 'Python',
+        'terraform': 'Terraform',
+        'telegram': 'Telegram',
+        'playwright': 'Playwright',
+        'azure': 'Azure',
+        'security': '安全',
+        'guidance': '指导',
+        'plugin': '插件',
+        'plugins': '插件',
+        'dev': '开发',
+        'server': '服务',
+        'creator': '创建器',
+        'report': '报告',
+        'session': '会话',
+        'review': '评审',
+        'toolkit': '工具包',
+        'tool': '工具',
+        'mcp': 'MCP',
+        'lsp': '语言服务',
+        'analyzer': '分析器',
+        'browser': '浏览器',
+        'automation': '自动化',
+        'playground': '演示环境',
+        'loop': '循环',
+        'guidance': '指导'
+    };
+
+    var ShiChang_ZaiXianFanYi_Zhong = new Set();
+
+    var ShiChang_MiaoShu_SuiPian = [
+        ['Generate an explorable HTML report of Claude Code session usage', '生成可浏览的 Claude Code 会话用量 HTML 报告'],
+        ['Generate an explorable HTML rep', '生成可浏览的 HTML 报告'],
+        ['Generate an explor', '生成可浏览的'],
+        ['tokens, cache efficiency, subagents, skills, and the most expensive prompts', '包括 token、缓存效率、子智能体、技能以及最昂贵的提示词'],
+        ['from local ~/.claude/projects transcripts.', '数据来自本地 ~/.claude/projects 转录记录。'],
+        ['TypeScript/JavaScript language server', 'TypeScript/JavaScript 语言服务器'],
+        ['TypeScript/JavaScript language ser', 'TypeScript/JavaScript 语言服务器'],
+        ['TypeScript/JavaScript language se', 'TypeScript/JavaScript 语言服务器'],
+        ['Swift language server', 'Swift 语言服务器'],
+        ['Swift language serv', 'Swift 语言服务器'],
+        ['Rust language server', 'Rust 语言服务器'],
+        ['Rust language serv', 'Rust 语言服务器'],
+        ['Ruby language server', 'Ruby 语言服务器'],
+        ['Ruby language serv', 'Ruby 语言服务器'],
+        ['Python language server', 'Python 语言服务器'],
+        ['Python language se', 'Python 语言服务器'],
+        ['PHP language server', 'PHP 语言服务器'],
+        ['language server for code intelligence', '用于代码智能的语言服务器'],
+        ['language server for code inte', '用于代码智能的语言服务器'],
+        ['for enhanced code intelligence', '用于增强代码智能'],
+        ['enhanced code intelligence', '增强代码智能'],
+        ['Semantic code analysis MCP server', '语义代码分析 MCP 服务器'],
+        ['Semantic code analysis MCP serve', '语义代码分析 MCP 服务器'],
+        ['Semantic code analysis MCP serve...', '语义代码分析 MCP 服务器...'],
+        ['Use Datadog directly in Cursor through a preconfigured Datadog MCP server.', '通过预配置的 Datadog MCP 服务器直接在 Cursor 中使用 Datadog。'],
+        ['Use Datadog directly in Cursor through a preconfigured Datadog MCP server', '通过预配置的 Datadog MCP 服务器直接在 Cursor 中使用 Datadog'],
+        ['Query logs, metrics, traces, dashboards, and more through natural conversation.', '通过自然语言对话查询日志、指标、链路追踪、仪表盘等内容。'],
+        ['This plugin is in preview.', '此插件处于预览阶段。'],
+        ['Slack MCP server.', 'Slack MCP 服务器。'],
+        ['Search channels, send messages, and perform operations', '搜索频道、发送消息并执行操作'],
+        ['Search channels, send messages', '搜索频道、发送消息'],
+        ['Plugin that includes the Figma MCP server and Skills for common', '包含 Figma MCP 服务器和常用技能的插件'],
+        ['Cursor Plugin for Linear', 'Linear 的 Cursor 插件'],
+        ['enables AI assistants to manage issues', '让 AI 助手能够管理议题'],
+        ['Twilio Skills and MCP provide procedural knowledge for AI coding', 'Twilio 技能和 MCP 为 AI 编码提供流程化知识'],
+        ['Twilio Skills and MCP provide procedural knowledge', 'Twilio 技能和 MCP 提供流程化知识'],
+        ['Query cloud costs, manage cost reports, budgets, alerts, and recommendations', '查询云成本，管理成本报告、预算、告警和建议'],
+        ['Query cloud costs, manage cost reports', '查询云成本，管理成本报告'],
+        ['Microsoft Azure MCP and Skills integration for cloud resource management', '用于云资源管理的 Microsoft Azure MCP 与技能集成'],
+        ['Microsoft Azure MCP and Skills integration', 'Microsoft Azure MCP 与技能集成'],
+        ['Comprehensive skill for the entire Temporal lifecycle', '覆盖整个 Temporal 生命周期的综合技能'],
+        ['Configures or troubleshoots the Datadog MCP server', '配置或排查 Datadog MCP 服务器'],
+        ['Configures or troubleshoots the Datadog MCP server `plugin-datadog-datadog`.', '配置或排查 Datadog MCP 服务器 `plugin-datadog-datadog`。'],
+        ['Use when the user wants to change the Datadog domain, switch organizations', '当用户想更改 Datadog 域名、切换组织时使用'],
+        ['First-time initialization of the Datadog MCP server', '首次初始化 Datadog MCP 服务器'],
+        ['First-time initialization of the Datadog MCP server `plugin-datadog-datadog`.', '首次初始化 Datadog MCP 服务器 `plugin-datadog-datadog`。'],
+        ['When fulfilling requests that involve Datadog, use MCP tools', '处理涉及 Datadog 的请求时，使用 MCP 工具'],
+        ['Manages toolsets for the Datadog MCP server', '管理 Datadog MCP 服务器的工具集'],
+        ['Manages toolsets for the Datadog MCP server `plugin-datog-datadog`.', '管理 Datadog MCP 服务器 `plugin-datog-datadog` 的工具集。'],
+        ['Manages toolsets for the Datadog MCP server `plugin-datadog-datadog`.', '管理 Datadog MCP 服务器 `plugin-datadog-datadog` 的工具集。'],
+        ['Use when the user wants to view, enable, or disable toolsets', '当用户想查看、启用或禁用工具集时使用'],
+        ['The Terraform MCP Server provides', 'Terraform MCP 服务器提供'],
+        ['The Terraform MCP Server provide', 'Terraform MCP 服务器提供'],
+        ['Telegram channel for Claude Code', 'Claude Code 的 Telegram 频道'],
+        ['Telegram channel for Claude Code...', 'Claude Code 的 Telegram 频道...'],
+        ['Telegram channel f', 'Claude Code 的 Telegram 频道'],
+        ['Create new skills, improve existing', '创建新技能、改进现有技能'],
+        ['Create new skills, improve existing...', '创建新技能、改进现有技能...'],
+        ['Create new skills, i', '创建新技能、改进现有技能'],
+        ['Security reminder hook that warns', '会发出警告的安全提醒钩子'],
+        ['Security reminder hook that warns...', '会发出警告的安全提醒钩子...'],
+        ['Security reminder hook that warn', '会发出警告的安全提醒钩子'],
+        ['Continuous self-referential AI loops', '连续自引用 AI 循环'],
+        ['Continuous self-referential AI loo...', '连续自引用 AI 循环...'],
+        ['Continuous self-referential AI loo', '连续自引用 AI 循环'],
+        ['Comprehensive PR review agents', '全面的 PR 评审智能体'],
+        ['Comprehensive PR review agents ...', '全面的 PR 评审智能体...'],
+        ['Comprehensive PR review agents', '全面的 PR 评审智能体'],
+        ['Browser automation and end-to-end', '浏览器自动化和端到端'],
+        ['Browser automation and end-to-e', '浏览器自动化和端到端'],
+        ['Creates interactive HTML playground', '创建交互式 HTML 演示环境'],
+        ['Creates interactive HTML playgro', '创建交互式 HTML 演示环境'],
+        ['Plugin development toolkit with skills', '带技能的插件开发工具包'],
+        ['Plugin development toolkit with s...', '带技能的插件开发工具包...'],
+        ['Plugin development toolkit with s', '带技能的插件开发工具包'],
+        ['Skills for designing and building MCP', '用于设计和构建 MCP 的技能'],
+        ['Generate an explorable HTML repo', '生成可浏览的 HTML 仓库报告'],
+        ['server for code intelligence', '代码智能服务器'],
+        ['and the most expensive prompts', '以及最昂贵的提示词'],
+        ['cache efficiency', '缓存效率'],
+        ['subagents', '子智能体'],
+        ['session usage', '会话用量']
+    ];
+
+    function FanYi_ShiChang_MiaoShu(text) {
+        if (!text) return null;
+        if (/^[\\s\\w.-]+$/.test(text) && text.length < 60 && text.indexOf(' ') === -1) return null;
+
+        var result = text;
+        var changed = false;
+        for (var i = 0; i < ShiChang_MiaoShu_SuiPian.length; i++) {
+            var pair = ShiChang_MiaoShu_SuiPian[i];
+            var neo = result.split(pair[0]).join(pair[1]);
+            if (pair[0].indexOf('...') !== -1) {
+                neo = neo.split(pair[0].replace(/\.\.\./g, '…')).join(pair[1].replace(/\.\.\./g, '…'));
+            }
+            if (neo !== result) {
+                result = neo;
+                changed = true;
+            }
+        }
+        return changed ? result : null;
+    }
+
+    function Shi_YiFanYi_De_ShiChang_WenBen(text) {
+        return !!(text && /[\u4e00-\u9fff]/.test(text));
+    }
+
+    function Shi_ShiChang_YingWen_MiaoShu(text) {
+        if (!text) return false;
+        var trimmed = GuiYiHua_WenBen(text);
+        if (trimmed.length < 18 || trimmed.length > 500) return false;
+        if (/[\u4e00-\u9fff]/.test(trimmed)) return false;
+        if (!/[A-Za-z]/.test(trimmed) || trimmed.indexOf(' ') === -1) return false;
+        if (/^[\w.-]+$/.test(trimmed)) return false;
+        if (/^(Search|Get|Add to Cursor|Browse Marketplace|Suggested|Featured|Documentation)$/i.test(trimmed)) return false;
+        return true;
+    }
+
+    function FanYi_ShiChang_ZaiXian(node, original) {
+        if (!Shi_ShiChang_YingWen_MiaoShu(original)) return;
+        if (Shi_YiFanYi_De_ShiChang_WenBen(node.textContent || '')) return;
+        if (ShiChang_ZaiXianFanYi_BenLun >= 8) return;
+        var key = 'cursor_hanhua_market_cache_' + original;
+        var cached = null;
+        try { cached = localStorage.getItem(key); } catch (e) {}
+        if (cached) {
+            node.__cursorShiChangYuanWen = original;
+            node.__cursorShiChangYiWen = cached;
+            node.textContent = cached;
+            return;
+        }
+        if (ShiChang_ZaiXianFanYi_Zhong.has(original)) return;
+        ShiChang_ZaiXianFanYi_Zhong.add(original);
+        ShiChang_ZaiXianFanYi_BenLun++;
+
+        var url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-CN&dt=t&q=' + encodeURIComponent(original);
+        fetch(url)
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+                var parts = data && data[0] ? data[0] : [];
+                var translated = '';
+                for (var i = 0; i < parts.length; i++) {
+                    if (parts[i] && parts[i][0]) translated += parts[i][0];
+                }
+                translated = translated.trim();
+                if (!translated || translated === original || !/[\u4e00-\u9fff]/.test(translated)) return;
+                try { localStorage.setItem(key, translated); } catch (e) {}
+                if (ShiChang_FanYi_Kai && node.__cursorShiChangYuanWen === original) {
+                    node.__cursorShiChangYiWen = translated;
+                    node.textContent = translated;
+                }
+            })
+            .catch(function() {})
+            .finally(function() { ShiChang_ZaiXianFanYi_Zhong.delete(original); });
+    }
+
+    function TuiDuan_ChaJian_ZhongWen(name) {
+        if (!name || name.indexOf(' ') !== -1 || name.indexOf('（') !== -1) return null;
+        if (!/[-_]/.test(name)) return null;
+        var parts = name.toLowerCase().split(/[-_]+/);
+        var out = [];
+        for (var i = 0; i < parts.length; i++) {
+            var word = ShiChang_MingCheng_CiGen[parts[i]];
+            if (word) out.push(word);
+        }
+        if (out.length < 2) return null;
+        var joined = out.join(' ');
+        return joined.length > 0 ? joined : null;
+    }
+
+    function Shi_ShiChang_Ye() {
+        if (!document.body) return false;
+        var now = Date.now();
+        if (now - ShiChang_Ye_HuanCun.time < 1200) return ShiChang_Ye_HuanCun.value;
+        var text = GuiYiHua_WenBen(document.body.textContent || '');
+        if (!text) return false;
+        var value = (
+            text.indexOf('claude-plugins-official') !== -1 ||
+            text.indexOf('Search skills, rules, subagents') !== -1 ||
+            text.indexOf('Add to Cursor') !== -1 ||
+            text.indexOf('All Plugins') !== -1 ||
+            text.indexOf('Suggested') !== -1 ||
+            text.indexOf('Search or Paste Link') !== -1 ||
+            text.indexOf('Browse Marketplace') !== -1 ||
+            text.indexOf('Datadog') !== -1 ||
+            text.indexOf('生成可浏览的 Claude Code') !== -1 ||
+            (text.indexOf('插件') !== -1 && (text.indexOf('推荐') !== -1 || text.indexOf('浏览市场') !== -1 || text.indexOf('暂无插件') !== -1)) ||
+            (text.indexOf('市场') !== -1 && (text.indexOf('精选') !== -1 || text.indexOf('全部插件') !== -1 || text.indexOf('添加到 Cursor') !== -1))
+        );
+        ShiChang_Ye_HuanCun.time = now;
+        ShiChang_Ye_HuanCun.value = value;
+        return value;
+    }
+
+    function BianLi_ShiChang_WenBen(callback) {
+        if (!document.body) return;
+        var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+        var node;
+        while ((node = walker.nextNode())) {
+            if (Shi_BianJiQi_QuYu(node)) continue;
+            var parent = node.parentElement;
+            if (!parent) continue;
+            if (parent.closest('input, textarea, select, [contenteditable="true"]')) continue;
+            callback(node);
+        }
+    }
+
+    function XiuZheng_ShiChang_FanYi() {
+        if (!Shi_ShiChang_Ye()) return;
+        ShiChang_ZaiXianFanYi_BenLun = 0;
+        BianLi_ShiChang_WenBen(function(node) {
+            if (ShiChang_FanYi_Kai) {
+                if (node.__cursorShiChangYiWen && node.textContent === node.__cursorShiChangYiWen) return;
+                var original = node.__cursorShiChangYuanWen || node.textContent;
+                if (Shi_YiFanYi_De_ShiChang_WenBen(original)) return;
+                var translated = FanYi_ShiChang_MiaoShu(original);
+                if (translated && translated !== node.textContent) {
+                    node.__cursorShiChangYuanWen = original;
+                    node.__cursorShiChangYiWen = translated;
+                    node.textContent = translated;
+                } else {
+                    node.__cursorShiChangYuanWen = original;
+                    if (ShiChang_ZaiXianFanYi_Kai) FanYi_ShiChang_ZaiXian(node, original);
+                }
+            } else if (node.__cursorShiChangYuanWen) {
+                node.textContent = node.__cursorShiChangYuanWen;
+            }
+        });
+        XiuZheng_ShiChang_MingCheng();
+    }
+
+    function ZhuiJia_ZhongWen_MingCheng(text, map) {
+        if (!text || text.indexOf('（') !== -1) return null;
+        var key = GuiYiHua_WenBen(text);
+        var cn = map[key] || TuiDuan_ChaJian_ZhongWen(key);
+        if (!cn) return null;
+        return text + '（' + cn + '）';
+    }
+
+    function XiuZheng_ShiChang_MingCheng() {
+        if (!ShiChang_FanYi_Kai) return;
+        var elements = document.querySelectorAll('div, span, p, label, a');
+        for (var i = 0; i < elements.length; i++) {
+            var el = elements[i];
+            if (!el || el.children.length > 0) continue;
+            if (el.closest('input, textarea, select, [contenteditable="true"]')) continue;
+            var raw = el.textContent || '';
+            var trimmed = GuiYiHua_WenBen(raw);
+            if (!trimmed || trimmed.length > 80 || trimmed.indexOf('（') !== -1) continue;
+
+            var appended = ZhuiJia_ZhongWen_MingCheng(raw, ShiChang_ChaJian_MingCheng) || ZhuiJia_ZhongWen_MingCheng(raw, ShiChang_JiNeng_MingCheng);
+            if (appended) {
+                el.__cursorShiChangYuanWen = el.__cursorShiChangYuanWen || raw;
+                el.textContent = appended;
+                if (el.firstChild && el.firstChild.nodeType === Node.TEXT_NODE) {
+                    el.firstChild.__cursorShiChangYuanWen = raw;
+                    el.firstChild.__cursorShiChangYiWen = appended;
                 }
             }
         }
+
+        BianLi_ShiChang_WenBen(function(node) {
+            var text = node.textContent || '';
+            var trimmed = GuiYiHua_WenBen(text);
+            if (!trimmed || trimmed.length > 80) return;
+
+            var pluginName = ZhuiJia_ZhongWen_MingCheng(text, ShiChang_ChaJian_MingCheng);
+            if (pluginName) {
+                node.__cursorShiChangYuanWen = node.__cursorShiChangYuanWen || text;
+                node.textContent = pluginName;
+                return;
+            }
+
+            var skillName = ZhuiJia_ZhongWen_MingCheng(text, ShiChang_JiNeng_MingCheng);
+            if (skillName) {
+                node.__cursorShiChangYuanWen = node.__cursorShiChangYuanWen || text;
+                node.textContent = skillName;
+            }
+        });
+    }
+
+    function GengXin_ShiChang_QieHuan_AnNiu() {
+        var id = 'cursor-hanhua-market-toggle';
+        var old = document.getElementById(id);
+        if (!Shi_ShiChang_Ye()) {
+            if (old) old.remove();
+            return;
+        }
+
+        var btn = old;
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.id = id;
+            btn.type = 'button';
+            btn.style.cssText = 'position:fixed;right:84px;top:48px;z-index:999999;border:1px solid #d0d7de;background:#ffffff;color:#1f2328;border-radius:6px;padding:5px 10px;font-size:12px;line-height:18px;box-shadow:0 4px 16px rgba(31,35,40,.12);cursor:pointer;';
+            btn.addEventListener('mouseenter', function() { btn.style.background = '#f6f8fa'; });
+            btn.addEventListener('mouseleave', function() { btn.style.background = '#ffffff'; });
+            btn.addEventListener('click', function() {
+                ShiChang_FanYi_Kai = !ShiChang_FanYi_Kai;
+                try { localStorage.setItem(ShiChang_FanYi_Jian, ShiChang_FanYi_Kai ? '1' : '0'); } catch (err) {}
+                XiuZheng_ShiChang_FanYi();
+                GengXin_ShiChang_QieHuan_AnNiu();
+                TiShi_ShiChang_ZhuangTai();
+            });
+            document.body.appendChild(btn);
+        }
+
+        btn.textContent = ShiChang_FanYi_Kai ? '插件描述：中文' : '插件描述：英文';
+        btn.title = '切换市场插件描述显示语言';
+    }
+
+    function TiShi_ShiChang_ZhuangTai() {
+        var old = document.getElementById('cursor-hanhua-market-toast');
+        if (old) old.remove();
+        var div = document.createElement('div');
+        div.id = 'cursor-hanhua-market-toast';
+        div.textContent = ShiChang_FanYi_Kai ? '市场插件描述：中文' : '市场插件描述：英文';
+        div.style.cssText = 'position:fixed;right:24px;bottom:28px;z-index:999999;background:#1f2937;color:#fff;padding:8px 12px;border-radius:6px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);';
+        document.body.appendChild(div);
+        setTimeout(function() { if (div.parentElement) div.remove(); }, 1600);
+    }
+
+    function ZhuCe_ShiChang_KuaiJieJian() {
+        if (window.__cursorHanhuaMarketHotkey) return;
+        window.__cursorHanhuaMarketHotkey = true;
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.altKey && !e.shiftKey && String(e.key || '').toLowerCase() === 'm') {
+                ShiChang_FanYi_Kai = !ShiChang_FanYi_Kai;
+                try { localStorage.setItem(ShiChang_FanYi_Jian, ShiChang_FanYi_Kai ? '1' : '0'); } catch (err) {}
+                XiuZheng_ShiChang_FanYi();
+                TiShi_ShiChang_ZhuangTai();
+            }
+        }, true);
     }
 
     // ================================================================
@@ -1366,27 +2560,25 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
     function ChuShiHua() {
         var target = document.documentElement || document.body;
         if (!target) { setTimeout(ChuShiHua, 50); return; }
+        ZhuCe_ShiChang_KuaiJieJian();
 
         var GuanChaQi = new MutationObserver(GuanCha_HuiDiao);
-        GuanChaQi.observe(target, { childList: true, subtree: true, characterData: true });
+        GuanChaQi.observe(target, { childList: true, subtree: true });
 
         setTimeout(function() {
             if (document.body) {
                 FanYi_ZiShu(document.body);
-                ChaRu_YongLiang_XianShi();
+                PaiDui_QuanJuXiuZheng();
                 if (_XHJ_LP) { setTimeout(function() { ShiShi_ShuaXin(false); }, 1500); }
             }
         }, 500);
 
-        var BuFan_CiShu = 0;
-        var BuFan_JiShiQi = setInterval(function() {
-            BuFan_CiShu++;
+        setTimeout(function() {
             if (document.body) {
                 FanYi_ZiShu(document.body);
-                ChaRu_YongLiang_XianShi();
+                PaiDui_QuanJuXiuZheng();
             }
-            if (BuFan_CiShu >= 10) { clearInterval(BuFan_JiShiQi); }
-        }, 3000);
+        }, 2500);
 
         if (_XHJ_LP) {
             setInterval(function() {
@@ -1412,7 +2604,12 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
 def HuoQu_GongZuoTai_LuJing():
     """获取 workbench 目录完整路径"""
-    return os.path.join(CURSOR_AN_ZHUANG_LU_JING, GONG_ZUO_TAI_HTML_XIANG_DUI)
+    return os.path.join(HuoQu_Cursor_App_MuLu(CURSOR_AN_ZHUANG_LU_JING), GONG_ZUO_TAI_HTML_XIANG_DUI)
+
+
+def HuoQu_Product_LuJing():
+    """获取 product.json 完整路径"""
+    return os.path.join(HuoQu_Cursor_App_MuLu(CURSOR_AN_ZHUANG_LU_JING), "product.json")
 
 
 def HuoQu_HTML_LuJing():
@@ -1486,7 +2683,7 @@ def ZhuRu_HTML():
 
 def GengXin_JiaoYan_Zhi():
     """更新 product.json 中 workbench.html 的校验哈希值"""
-    LuJing_Product = os.path.join(CURSOR_AN_ZHUANG_LU_JING, "resources", "app", "product.json")
+    LuJing_Product = HuoQu_Product_LuJing()
     LuJing_Html = HuoQu_HTML_LuJing()
 
     if not os.path.exists(LuJing_Product):
@@ -1517,9 +2714,124 @@ def GengXin_JiaoYan_Zhi():
         print(f"[警告] product.json 中未找到 workbench.html 的校验条目")
 
 
+def HuoQu_YuYan_Bao_PeiZhi_LuJing():
+    """获取 Cursor 用户数据目录中的 languagepacks.json 路径"""
+    return os.path.join(CURSOR_SHU_JU_LU_JING, "languagepacks.json")
+
+
+def DuQu_YuYan_Bao_PeiZhi():
+    """读取 languagepacks.json"""
+    LuJing = HuoQu_YuYan_Bao_PeiZhi_LuJing()
+    if not os.path.exists(LuJing):
+        print(f"[语言包] 未找到 languagepacks.json: {LuJing}")
+        return None, LuJing
+
+    try:
+        with open(LuJing, 'r', encoding='utf-8') as WenJian:
+            return json.load(WenJian), LuJing
+    except Exception as CuoWu:
+        print(f"[语言包] 读取 languagepacks.json 失败: {CuoWu}")
+        return None, LuJing
+
+
+def HuoQu_JianTiZhongWen_PeiZhi(XinXi):
+    """从 languagepacks.json 中查找 zh-cn 配置"""
+    if not XinXi:
+        return None, None
+
+    for Jian in ("zh-cn", "zh-CN"):
+        if Jian in XinXi:
+            return Jian, XinXi[Jian]
+
+    print("[语言包] 未找到 zh-cn 语言包配置，跳过 Cursor 私有扩展翻译桥接")
+    return None, None
+
+
+def XieRu_KuoZhan_FanYi_QiaoJie():
+    """把 Cursor 私有扩展翻译接到现有 zh-cn 语言包通道"""
+    XinXi, LuJing = DuQu_YuYan_Bao_PeiZhi()
+    Jian, PeiZhi = HuoQu_JianTiZhongWen_PeiZhi(XinXi)
+    if not Jian or not PeiZhi:
+        return
+
+    FanYiLieBiao = PeiZhi.setdefault("translations", {})
+    ZhuFanYi = FanYiLieBiao.get("vscode")
+    if not ZhuFanYi:
+        print("[语言包] zh-cn 配置缺少 vscode 主翻译路径，跳过私有扩展翻译桥接")
+        return
+
+    KuoZhanMuLu = os.path.dirname(ZhuFanYi)
+    os.makedirs(KuoZhanMuLu, exist_ok=True)
+
+    ShiFouGengXin = False
+    for KuoZhanId, FanYiNeiRong in KUO_ZHAN_FAN_YI_QIAO_JIE.items():
+        WenJianMing = KuoZhanId.replace('/', '.').replace('\\', '.') + ".i18n.json"
+        WenJianLuJing = os.path.join(KuoZhanMuLu, WenJianMing)
+        BiaoZhunNeiRong = {
+            "": [
+                "Generated by CursorHanHua_GongJu.py for Cursor private extensions."
+            ],
+            "version": "1.0.0",
+            "contents": FanYiNeiRong
+        }
+
+        YuanYou = None
+        if os.path.exists(WenJianLuJing):
+            try:
+                with open(WenJianLuJing, 'r', encoding='utf-8') as WenJian:
+                    YuanYou = json.load(WenJian)
+            except Exception:
+                YuanYou = None
+
+        if YuanYou != BiaoZhunNeiRong:
+            with open(WenJianLuJing, 'w', encoding='utf-8') as WenJian:
+                json.dump(BiaoZhunNeiRong, WenJian, ensure_ascii=False, indent=2)
+                WenJian.write('\n')
+            print(f"[语言包] 已写入私有扩展翻译: {WenJianLuJing}")
+            ShiFouGengXin = True
+
+        if FanYiLieBiao.get(KuoZhanId) != WenJianLuJing:
+            FanYiLieBiao[KuoZhanId] = WenJianLuJing
+            ShiFouGengXin = True
+
+    if ShiFouGengXin:
+        with open(LuJing, 'w', encoding='utf-8') as WenJian:
+            json.dump(XinXi, WenJian, ensure_ascii=False, indent=2)
+            WenJian.write('\n')
+        print("[语言包] 已更新 languagepacks.json，重启 Cursor 后私有扩展简中生效")
+    else:
+        print("[语言包] Cursor 私有扩展翻译桥接已是最新状态")
+
+
+def YiChu_KuoZhan_FanYi_QiaoJie():
+    """移除脚本添加的 Cursor 私有扩展翻译桥接"""
+    XinXi, LuJing = DuQu_YuYan_Bao_PeiZhi()
+    Jian, PeiZhi = HuoQu_JianTiZhongWen_PeiZhi(XinXi)
+    if not Jian or not PeiZhi:
+        return
+
+    FanYiLieBiao = PeiZhi.get("translations", {})
+    ShiFouGengXin = False
+
+    for KuoZhanId in KUO_ZHAN_FAN_YI_QIAO_JIE:
+        WenJianLuJing = FanYiLieBiao.get(KuoZhanId)
+        if WenJianLuJing and os.path.exists(WenJianLuJing):
+            os.remove(WenJianLuJing)
+            print(f"[语言包] 已删除私有扩展翻译: {WenJianLuJing}")
+        if KuoZhanId in FanYiLieBiao:
+            del FanYiLieBiao[KuoZhanId]
+            ShiFouGengXin = True
+
+    if ShiFouGengXin:
+        with open(LuJing, 'w', encoding='utf-8') as WenJian:
+            json.dump(XinXi, WenJian, ensure_ascii=False, indent=2)
+            WenJian.write('\n')
+        print("[语言包] 已从 languagepacks.json 移除私有扩展翻译桥接")
+
+
 def HuiFu_JiaoYan_Zhi():
     """恢复 product.json 的原始校验值"""
-    LuJing_Product = os.path.join(CURSOR_AN_ZHUANG_LU_JING, "resources", "app", "product.json")
+    LuJing_Product = HuoQu_Product_LuJing()
     LuJing_Product_BeiFen = LuJing_Product + BEI_FEN_HOU_ZHUI
     if os.path.exists(LuJing_Product_BeiFen):
         shutil.copy2(LuJing_Product_BeiFen, LuJing_Product)
@@ -1562,6 +2874,8 @@ def HuiFu_YuanShi():
         os.remove(LuJing_Js)
         print(f"[清理] 已删除脚本: {LuJing_Js}")
 
+    YiChu_KuoZhan_FanYi_QiaoJie()
+
     print("[完成] 已恢复原始状态")
 
 
@@ -1590,7 +2904,7 @@ def ZhuChengXu():
         sys.exit(1)
 
     # 读取认证令牌
-    print("\n[步骤 1/4] 读取认证信息...")
+    print("\n[步骤 1/5] 读取认证信息...")
     LingPai, YouXiang = DuQu_FangWen_LingPai()
     if LingPai:
         print(f"[认证] 已找到令牌，邮箱: {YouXiang or '未知'}")
@@ -1600,7 +2914,7 @@ def ZhuChengXu():
     # 获取用量数据
     YongLiang_ShuJu = None
     if LingPai:
-        print("\n[步骤 2/4] 获取用量数据...")
+        print("\n[步骤 2/5] 获取用量数据...")
         YongLiang_ShuJu = ZhengHe_YongLiang_ShuJu(LingPai)
         if YongLiang_ShuJu and YongLiang_ShuJu.get("youXiao"):
             print(f"[用量] 总用量: {YongLiang_ShuJu['zongYong']} / {YongLiang_ShuJu['zongXian']} 次")
@@ -1611,7 +2925,7 @@ def ZhuChengXu():
         else:
             print("[用量] 获取用量数据失败，将仅汉化")
     else:
-        print("\n[步骤 2/4] 跳过用量获取（无令牌）")
+        print("\n[步骤 2/5] 跳过用量获取（无令牌）")
 
     if not YongLiang_ShuJu:
         YongLiang_ShuJu = {
@@ -1622,6 +2936,9 @@ def ZhuChengXu():
             "gengXinShiJian": "", "jiHua": "", "youXiao": False
         }
 
+    print("\n[步骤 3/5] 更新 Cursor 私有扩展翻译桥接...")
+    XieRu_KuoZhan_FanYi_QiaoJie()
+
     # 检查是否已注入
     if JianCha_YiZhuRu():
         print("\n[检测] 脚本已注入，正在更新...")
@@ -1631,11 +2948,11 @@ def ZhuChengXu():
         return
 
     # 首次注入
-    print(f"\n[步骤 3/4] 创建备份并写入脚本...")
+    print(f"\n[步骤 4/5] 创建备份并写入脚本...")
     ChuangJian_BeiFen()
     XieRu_FanYi_JS(YongLiang_ShuJu, LingPai or "")
 
-    print("[步骤 4/4] 注入 HTML 引用...")
+    print("[步骤 5/5] 注入 HTML 引用...")
     ZhuRu_HTML()
 
     print("\n" + "=" * 60)

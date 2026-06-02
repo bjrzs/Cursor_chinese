@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+*.bak
+cursor_hanhua.js
+workbench.html
+product.json
+*.log
+.env
+.DS_Store

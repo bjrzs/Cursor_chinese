@@ -1075,6 +1075,19 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         ["Start Free Trial", "开始免费试用"],
         ["Start free trial", "开始免费试用"],
 
+        // ==================== 仓库选择器 (Repos) ====================
+        ["Repos", "仓库"],
+        ["On This PC", "本机"],
+        ["On this PC", "本机"],
+        ["This PC", "本机"],
+        ["Cloud", "云端"],
+        ["Start from scratch", "从零开始"],
+        ["Start From Scratch", "从零开始"],
+        ["Use Existing...", "使用已有..."],
+        ["Use existing...", "使用已有..."],
+        ["Use Existing", "使用已有"],
+        ["New Folder", "新建文件夹"],
+
         // ==================== 菜单栏 (Menu Bar) ====================
         ["File", "文件"],
         ["New Agent", "新建智能体"],

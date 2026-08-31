@@ -1077,16 +1077,41 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
         // ==================== 仓库选择器 (Repos) ====================
         ["Repos", "仓库"],
+        ["Recents", "最近"],
         ["On This PC", "本机"],
         ["On this PC", "本机"],
+        ["On This Mac", "本机"],
+        ["On This Computer", "本机"],
         ["This PC", "本机"],
+        ["This Mac", "本机"],
+        ["This Computer", "本机"],
         ["Cloud", "云端"],
         ["Start from scratch", "从零开始"],
         ["Start From Scratch", "从零开始"],
+        ["+ Start from scratch", "从零开始"],
         ["Use Existing...", "使用已有..."],
+        ["Use Existing…", "使用已有..."],
         ["Use existing...", "使用已有..."],
         ["Use Existing", "使用已有"],
         ["New Folder", "新建文件夹"],
+        ["Add Workspace", "添加工作区"],
+        ["Clone Repository", "克隆仓库"],
+        ["Connect via SSH", "通过 SSH 连接"],
+        ["Connect via WSL", "通过 WSL 连接"],
+        ["Connect SSH", "连接 SSH"],
+        ["Connect WSL", "连接 WSL"],
+        ["Connect", "连接"],
+        ["Set Up Workspace", "设置工作区"],
+        ["Select a project", "选择项目"],
+        ["Select a repository", "选择仓库"],
+        ["Select a workspace", "选择工作区"],
+        ["Search folders, repos...", "搜索文件夹、仓库..."],
+        ["Search folders, repos…", "搜索文件夹、仓库..."],
+        ["Search repositories, environments...", "搜索仓库、环境..."],
+        ["Search workspaces...", "搜索工作区..."],
+        ["Search folders…", "搜索文件夹..."],
+        ["New Local Git Repo", "新建本地 Git 仓库"],
+        ["Repository URL (https or SSH)", "仓库地址（https 或 SSH）"],
 
         // ==================== 菜单栏 (Menu Bar) ====================
         ["File", "文件"],
@@ -1328,6 +1353,22 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
     var TiaoGuo_XuanZeQi = '.monaco-editor, .overflow-guard, .view-lines, .editor-scrollable, .inputarea, .rename-input';
     var TiaoGuo_BiaoQian = new Set(['TEXTAREA', 'INPUT', 'SCRIPT', 'STYLE', 'CODE', 'PRE', 'NOSCRIPT']);
 
+    function _GuiYi_WenBen(s) {
+        return String(s || '')
+            .replace(/[\\u00a0\\u2007\\u202f]/g, ' ')
+            .replace(/\\u2026/g, '...')
+            .replace(/^\\s*\\+\\s+/, '')
+            .trim();
+    }
+
+    function _ChaZhao_FanYi(s) {
+        if (!s) return null;
+        if (FanYi_CiDian.has(s)) return FanYi_CiDian.get(s);
+        var n = _GuiYi_WenBen(s);
+        if (n && n !== s && FanYi_CiDian.has(n)) return FanYi_CiDian.get(n);
+        return null;
+    }
+
     function FanYi_WenBen_JieDian(node) {
         var text = node.textContent;
         if (!text) return;
@@ -1336,10 +1377,11 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         if (/^[\\d\\s.,;:!?@#$%^&*()\\-+=<>\\/\\\\|~`'"[\\]{}]+$/.test(trimmed)) return;
         if (/[\\u4e00-\\u9fff]/.test(trimmed) && (trimmed.match(/[\\u4e00-\\u9fff]/g) || []).length > trimmed.length * 0.3) return;
 
-        if (FanYi_CiDian.has(trimmed)) {
+        var yiWen = _ChaZhao_FanYi(trimmed);
+        if (yiWen) {
             var prefix = text.substring(0, text.indexOf(trimmed));
             var suffix = text.substring(text.indexOf(trimmed) + trimmed.length);
-            node.textContent = prefix + FanYi_CiDian.get(trimmed) + suffix;
+            node.textContent = prefix + yiWen + suffix;
             return;
         }
 
@@ -1358,10 +1400,8 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         for (var i = 0; i < attrs.length; i++) {
             var val = el.getAttribute(attrs[i]);
             if (val) {
-                var trimmed = val.trim();
-                if (FanYi_CiDian.has(trimmed)) {
-                    el.setAttribute(attrs[i], FanYi_CiDian.get(trimmed));
-                }
+                var yiWen = _ChaZhao_FanYi(val.trim());
+                if (yiWen) el.setAttribute(attrs[i], yiWen);
             }
         }
     }
@@ -1384,6 +1424,9 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
                 if (node.getAttribute('contenteditable') === 'true') continue;
                 if (node.id === 'cursor-yongliang-chat') continue;
                 FanYi_ShuXing(node);
+                if (node.shadowRoot) {
+                    try { _GuaJie_YingZi(node); FanYi_ZiShu(node.shadowRoot); } catch (e) {}
+                }
                 var children = node.childNodes;
                 for (var i = children.length - 1; i >= 0; i--) { stack.push(children[i]); }
             } else if (node.nodeType === Node.TEXT_NODE) {
@@ -1394,6 +1437,14 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
     var DaiChuLi_JieDian = [];
     var YiDiaoDu = false;
+    var GuanChaQi = null;
+
+    function _GuaJie_YingZi(el) {
+        if (!el || !el.shadowRoot || !GuanChaQi) return;
+        try {
+            GuanChaQi.observe(el.shadowRoot, { childList: true, subtree: true, characterData: true });
+        } catch (e) {}
+    }
 
     function TianJia_DaiChuLi(node) {
         DaiChuLi_JieDian.push(node);
@@ -1769,7 +1820,7 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
         var target = document.documentElement || document.body;
         if (!target) { setTimeout(ChuShiHua, 50); return; }
 
-        var GuanChaQi = new MutationObserver(GuanCha_HuiDiao);
+        GuanChaQi = new MutationObserver(GuanCha_HuiDiao);
         GuanChaQi.observe(target, { childList: true, subtree: true, characterData: true });
 
         setTimeout(function() {
@@ -2329,6 +2380,10 @@ def QueBao_ZhuRu(JingMo=False):
         print(f"[检测] {YuanYin}，刷新用量数据...")
     GengXin_YongLiang_XianShi(JingMo=JingMo)
     XieRu_ZhuRu_ZhuangTai()
+    try:
+        XieRu_QiDong_VBS()
+    except Exception:
+        pass
     return False, YuanYin
 
 

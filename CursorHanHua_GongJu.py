@@ -33,6 +33,9 @@ import urllib.request  # HTTP 请求
 import urllib.error  # HTTP 错误处理
 import time  # 后台用量轮询
 
+# 本工具版本（与 README 保持一致）
+GONG_JU_BAN_BEN = "1.2.1"
+
 # ============================================================
 # ★★★ 用户配置区域 ★★★
 # ============================================================
@@ -1846,12 +1849,12 @@ def ShengCheng_JS_DaiMa(YongLiang_ShuJu, YuanShi_LingPai=""):
 
         if (_XHJ_LP) {
             setInterval(function() {
-                _JiaZai_LiveJson(function(ok) {
-                    if (!ok && document.getElementById('cursor-yongliang-chat')) {
+                _JiaZai_LiveJson(function() {
+                    if (document.getElementById('cursor-yongliang-chat')) {
                         ShiShi_ShuaXin(false);
                     }
                 });
-            }, 60000);
+            }, 20000);
         }
     }
 
@@ -2057,7 +2060,7 @@ def Shi_Cursor_YunXing():
 
 
 def QiDong_YongLiang_JianKong():
-    """后台启动用量刷新（Cursor 运行期间每 60 秒更新 usage_live.json）"""
+    """后台启动用量刷新（Cursor 运行期间定时更新 usage_live.json）"""
     Suo = _YongLiang_JianKong_Suo()
     if os.path.exists(Suo):
         try:
@@ -2081,20 +2084,34 @@ def QiDong_YongLiang_JianKong():
 
 
 def YongLiang_JianKong_Loop():
-    """Cursor 运行期间定时拉取官网用量并写入 usage_live.json"""
+    """Cursor 运行期间定时拉取官网用量并写入 usage_live.json。
+
+    只写 live json，不重写汉化 JS（页面通过同源 fetch 刷新）。
+    启动后先等 Cursor 出现，避免 --qi-dong 竞态导致监控立刻退出。
+    """
     Suo = _YongLiang_JianKong_Suo()
     os.makedirs(os.path.dirname(Suo), exist_ok=True)
     with open(Suo, "w", encoding="utf-8") as WenJian:
         WenJian.write(str(os.getpid()))
     try:
-        while Shi_Cursor_YunXing():
-            try:
-                GengXin_YongLiang_XianShi(JingMo=True)
-            except Exception:
-                pass
-            for _ in range(60):
-                if not Shi_Cursor_YunXing():
-                    break
+        for _ in range(90):
+            if Shi_Cursor_YunXing():
+                break
+            time.sleep(1)
+        LianXu_WeiYunXing = 0
+        while LianXu_WeiYunXing < 20:
+            if Shi_Cursor_YunXing():
+                LianXu_WeiYunXing = 0
+                try:
+                    GengXin_YongLiang_XianShi(JingMo=True, JinXieLive=True)
+                except Exception:
+                    pass
+                for _ in range(20):
+                    if not Shi_Cursor_YunXing():
+                        break
+                    time.sleep(1)
+            else:
+                LianXu_WeiYunXing += 1
                 time.sleep(1)
     finally:
         try:
@@ -2347,8 +2364,8 @@ def ZhiXing_ZhuRu(YongLiang_ShuJu, LingPai, QiangZhi_BeiFen=False):
     print(f"[状态] 已记录注入版本: {ZhuangTai.get('version')} ({ZhuangTai.get('commit', '')[:8]})")
 
 
-def GengXin_YongLiang_XianShi(JingMo=False):
-    """拉取最新用量并写入 live json / 注入脚本"""
+def GengXin_YongLiang_XianShi(JingMo=False, JinXieLive=False):
+    """拉取最新用量并写入 live json；非监控周期还会回写注入脚本。"""
     YongLiang_ShuJu, LingPai = ShouJi_YongLiang_ShuJu(JingMo=JingMo)
     Jiu = DuQu_YongLiang_LiveJson()
     if not YongLiang_ShuJu_KeXin(YongLiang_ShuJu) and YongLiang_ShuJu_KeXin(Jiu):
@@ -2356,7 +2373,7 @@ def GengXin_YongLiang_XianShi(JingMo=False):
             print("[用量] 本次拉取未拿到官网百分比，保留上次有效数据")
         return Jiu
     XieRu_YongLiang_LiveJson(YongLiang_ShuJu)
-    if JianCha_YiZhuRu() and YongLiang_ShuJu_KeXin(YongLiang_ShuJu):
+    if (not JinXieLive) and JianCha_YiZhuRu() and YongLiang_ShuJu_KeXin(YongLiang_ShuJu):
         XieRu_FanYi_JS(YongLiang_ShuJu, LingPai)
         GengXin_JiaoYan_Zhi()
     return YongLiang_ShuJu if YongLiang_ShuJu_KeXin(YongLiang_ShuJu) else (Jiu or YongLiang_ShuJu)
@@ -2374,6 +2391,11 @@ def QueBao_ZhuRu(JingMo=False):
             print(f"[检测] 需要重新注入：{YuanYin}")
         YongLiang_ShuJu, LingPai = ShouJi_YongLiang_ShuJu(JingMo=JingMo)
         ZhiXing_ZhuRu(YongLiang_ShuJu, LingPai, QiangZhi_BeiFen=True)
+        try:
+            if Shi_Cursor_YunXing():
+                QiDong_YongLiang_JianKong()
+        except Exception:
+            pass
         return True, YuanYin
 
     if not JingMo:
@@ -2382,6 +2404,11 @@ def QueBao_ZhuRu(JingMo=False):
     XieRu_ZhuRu_ZhuangTai()
     try:
         XieRu_QiDong_VBS()
+    except Exception:
+        pass
+    try:
+        if Shi_Cursor_YunXing():
+            QiDong_YongLiang_JianKong()
     except Exception:
         pass
     return False, YuanYin
@@ -2496,6 +2523,7 @@ def ZhuChengXu():
     if not JingMo:
         print("=" * 60)
         print("  Cursor 汉化 + 用量监控工具")
+        print(f"  工具版本: {GONG_JU_BAN_BEN}")
         print(f"  时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"  安装路径: {HuoQu_AnZhuang_LuJing()}")
         print(f"  数据路径: {HuoQu_ShuJu_LuJing()}")

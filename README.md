@@ -1,5 +1,7 @@
 # Cursor Settings 页面汉化 + 用量监控工具
 
+**当前版本：1.2.1**
+
 ## 致谢与出处
 
 本项目在 **[bjrzs/Cursor_chinese](https://github.com/bjrzs/Cursor_chinese)** 基础上二次开发与独立维护，感谢原作者的开源贡献。
@@ -10,7 +12,21 @@
 | **原作者** | [@bjrzs](https://github.com/bjrzs)（行云流水 / lx） |
 | **本仓库** | [https://github.com/xyiqq/Cursor_chinese](https://github.com/xyiqq/Cursor_chinese) |
 
-本 fork 在原有 Settings 汉化与用量显示能力上，额外增加了：菜单与 Agents/Worktrees 等页面汉化、聊天输入框上方用量条、Cursor 版本更新后启动自愈、用量与官网 `usage-summary` 同步及防覆盖刷新等。若上游长期未更新，请以本仓库 `master` 分支为准。
+本 fork 在原有 Settings 汉化与用量显示能力上，额外增加了：菜单与 Agents/Worktrees 等页面汉化、聊天输入框下方用量条、Cursor 版本更新后启动自愈、用量与官网 `usage-summary` 同步及防覆盖刷新等。若上游长期未更新，请以本仓库 `master` 分支为准。
+
+## 更新日志
+
+### 1.2.1
+
+- 修复用量条不再实时更新：后台监控不再因 Cursor 启动竞态立刻退出；注入/自愈时若 Cursor 已在运行会自动拉起监控
+- 监控周期只写 `usage_live.json`，页面约 20 秒刷新一次
+
+### 1.2.0
+
+- 修复计费周期重置后用量条不更新：官网合法返回约 0% 时，不再被「防失败覆盖」逻辑误拦
+- 计费周期变化或已用次数变化时允许写入 `usage_live.json`
+- 文档修正：用量条位于聊天输入框下方
+- 移除仓库中的本机绝对路径启动器；改为 `QiDong_Cursor_ZhongWen.vbs.example` 模板，真实 VBS 由 `--an-zhuang` 生成本机路径且不再入库
 
 ## 工具简介
 
@@ -169,6 +185,7 @@ Python 脚本
 | 部分文本未翻译 | 在 `FanYi_CiDian` 字典中添加对应的英文→中文映射 |
 | 用量卡片不显示 | 检查 `CURSOR_SHU_JU_LU_JING` 路径是否正确，确认已登录 Cursor |
 | 用量数据获取失败 | 检查网络连接，或令牌已过期（重新登录 Cursor 后重新运行脚本） |
+| 官网已重置但本地仍显示旧用量 | 升级至 1.2.1+；或重新运行 `python CursorHanHua_GongJu.py` 后点击用量条刷新 |
 | Cursor 启动异常 | 运行 `python CursorHanHua_GongJu.py --huifu` 恢复原始文件 |
 | 更新后汉化消失 | 用桌面「Cursor中文」重新启动一次；或运行 `python CursorHanHua_GongJu.py --an-zhuang` |
 
